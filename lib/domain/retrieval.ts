@@ -1,0 +1,22 @@
+import type { Answer, HubState } from "./types";
+import { eligible } from "./workflow";
+export function answerQuestion(state: HubState, question: string, equipmentId: string, broad = false): Answer {
+  const q = question.trim().toLowerCase();
+  const base: Answer = { label: "Insufficient evidence", text: "The accessible sources do not establish an answer to this question.", evidence: "No supported claim was generated.", limitations: "Keyword retrieval only. Refine your question or supply an observation for review.", citations: [], conflict: false, provider: "Deterministic retrieval" };
+  if (!state.equipment.some(e => e.id === equipmentId)) return { ...base, text: "Choose equipment to establish your question's scope." };
+  const docs = state.documents.filter(d => d.applicability !== "superseded" && d.publication !== "withdrawn" && (broad || d.equipmentIds.includes(equipmentId)));
+  if (/trend|live|temperature over|thermal profile/.test(q)) return { ...base, text: "No timestamped operating measurements are available. A measured trend cannot be produced.", evidence: "Datasheet values are specifications, not sensor readings.", limitations: "Connect and validate a measurement source before plotting an operating trend." };
+  if (/history|failure|vibrat|noise|seal|troubleshoot|incident/.test(q)) {
+    const terms = q.split(/\W+/).filter(t => t.length > 3);
+    const matches = state.history.filter(h => (broad || h.equipmentId === equipmentId) && terms.some(t => `${h.symptom} ${h.cause} ${h.action}`.toLowerCase().includes(t))).slice(0, 3);
+    const reviewed = state.cases.filter(c => (broad || c.equipmentId === equipmentId) && c.status === "verified_closed" && c.knowledge === "ready" && terms.some(t => `${c.title} ${c.symptom} ${c.lesson}`.toLowerCase().includes(t))).slice(0, 2);
+    if (!matches.length && !reviewed.length) return { ...base, text: "No matching history in your accessible sources. Continue with technical references and record your investigation.", view: "history" };
+    return { ...base, label: "Historical evidence", text: "These previous cases may help frame your investigation. Historical causes do not establish the cause of the current symptom.", evidence: [...reviewed.map(c => `${c.title}: ${c.outcome}`), ...matches.map(h => `${h.wo}: ${h.symptom}. Source-recorded cause: ${h.cause}.`)].join("\n\n"), limitations: "Imported work orders are CALIBER sample records, not independently reverified Hub closures. Verify applicability before acting.", citations: [...reviewed.map(c => ({ id: c.id, label: c.title, locator: "Verified case", href: `/cases/${c.id}` })), ...matches.map(h => ({ id: h.id, label: h.wo, locator: h.source.split(" | ")[1] || "Workbook record", href: `/cases/${h.id}` }))], view: "history" };
+  }
+  const type = /prim|start.?up/.test(q) ? "06" : /location|where|plot/.test(q) ? "PLOT" : /interlock|trip|protection/.test(q) ? "INTERLOCK" : /p&id|connection|process/.test(q) ? "PID" : /spec|flow|head|motor|datasheet/.test(q) ? "DATASHEET" : null;
+  const terms = q.split(/\W+/).filter(t => t.length > 3);
+  const matches = docs.filter(d => type === "06" ? d.number.endsWith("-06") : type ? d.type.includes(type) : terms.some(t => `${d.title} ${d.number}`.toLowerCase().includes(t))).slice(0, 3);
+  if (!matches.length) return base;
+  const conflict = state.issues.some(i => i.status === "open" && i.sourceIds.some(id => matches.some(d => d.id === id)));
+  return { ...base, label: conflict ? "Conflicting references" : matches.some(eligible) ? "Approved source located" : "Source awaits review", text: conflict ? "A source issue is under review. Disputed claims remain unresolved; inspect the linked evidence." : matches.some(eligible) ? "An applicable, approved reference is available. Open the exact page to verify its procedure or specification." : "The relevant source has not completed metadata confirmation, technical review, and publication. It is not an approved operating instruction in this hub.", evidence: matches.map(d => `${d.number} — ${d.title}; revision ${d.revision ?? "not recorded"}.`).join("\n"), limitations: "No technical instruction or unverified threshold was generated. Training data is not operational authorization.", citations: matches.map(d => ({ id: d.id, label: d.number, locator: `Rev ${d.revision ?? "not recorded"} · page 1`, href: `/documents/${d.documentId}/versions/${d.id}` })), view: matches[0].id, conflict };
+}

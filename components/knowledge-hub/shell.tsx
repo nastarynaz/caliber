@@ -1,0 +1,27 @@
+"use client";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { BookOpen, Boxes, CircleHelp, ClipboardList, Files, FolderCheck, Gauge, LogOut, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, X, RefreshCw } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { useHub } from "./provider";
+import { Onboarding } from "./onboarding";
+export function Shell({ children }: { children: ReactNode }) {
+  const { actor, state, notice, setNotice, reload } = useHub(); const pathname = usePathname(); const router = useRouter(); const [collapsed, setCollapsed] = useState(false);
+  const admin = actor.role === "controller" || actor.role === "reviewer";
+  async function changeRole(role: string) { const r = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) }); if (r.ok) { router.push("/equipment/EQP-000001"); router.refresh(); } else setNotice("Persona switch failed."); }
+  return <div className={`hub-app ${collapsed ? "nav-collapsed" : ""}`}>
+    <a className="skip-link" href="#main-content">Skip to workspace</a>
+    <aside className="hub-nav" data-tour="primary-nav"><Link href="/equipment" className="brand"><span className="brand-symbol"><BookOpen size={21}/></span><span className="nav-copy">Knowledge<span className="brand-sub">MANUFACTURING HUB</span></span></Link>
+      <div className="nav-group-label nav-copy">WORKSPACE</div><nav aria-label="Workspace navigation">
+        <Nav href="/equipment" icon={<Boxes size={18}/>} active={pathname.startsWith("/equipment")} label="Equipment"/>
+        <Nav href="/documents" icon={<Files size={18}/>} active={pathname.startsWith("/documents")} label="Document library"/>
+        <Nav href="/cases" icon={<ClipboardList size={18}/>} active={pathname.startsWith("/cases")} label="Cases & observations"/>
+        {admin && <div data-tour="governance-nav"><div className="nav-group-label nav-copy">GOVERNANCE</div><Nav href="/admin" icon={<FolderCheck size={18}/>} active={pathname === "/admin"} label="Review workspace"/><Nav href="/admin/data-quality" icon={<ShieldCheck size={18}/>} active={pathname === "/admin/data-quality"} label="Data quality"/><Nav href="/admin/access" icon={<Gauge size={18}/>} active={pathname === "/admin/access"} label="Access & integration"/></div>}
+      </nav><div className="nav-bottom"><div className="nav-context nav-copy"><span className="tiny-label">PILOT COLLECTION</span><strong>CALIBER · Case 01</strong><span>{state.equipment.length} equipment identities<br/>Set 01 sources available</span></div><button className="nav-collapse" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}>{collapsed ? <PanelLeftOpen size={17}/> : <PanelLeftClose size={17}/>}<span className="nav-copy">Collapse navigation</span></button></div>
+    </aside><div className="hub-main"><header className="global-header"><div className="breadcrumb-line"><span>Manufacturing</span><span>/</span><strong>{pathname.startsWith("/admin") ? "Document governance" : "Engineering workspace"}</strong></div><div className="header-actions"><Link href="/equipment" aria-label="Search equipment"><Search size={17}/></Link><button aria-label="Start guided tour" title="Guided tour" onClick={() => /^\/equipment\/[^/]+$/.test(pathname) ? window.dispatchEvent(new Event("knowledge-hub:start-tour")) : router.push("/equipment/EQP-000001?tour=1")}><CircleHelp size={17}/></button><span className="header-divider"/><span className="avatar">{actor.name.slice(0,1)}</span><span className="user-name">{actor.name.split(" · ")[0]}</span><button aria-label="Sign out" onClick={async () => { await fetch("/api/session", { method: "DELETE" }); router.replace("/login"); router.refresh(); }}><LogOut size={15}/></button></div></header>
+      <div className="demo-strip"><span><i/> {actor.mode === "demo" ? "DEMO WORKSPACE" : "CONNECTED WORKSPACE"}</span><span className="demo-description">{actor.mode === "demo" ? "Training data. No live telemetry; Gemini is optional." : "Supabase authenticated · permissions enforced server-side."}</span>{actor.mode === "demo" && <label className="persona-label" data-tour="persona-switch">Demo persona<select aria-label="Demo persona" value={actor.role} onChange={e => changeRole(e.target.value)}><option value="engineer">Engineer + contributor</option><option value="controller">Document controller</option><option value="reviewer">Technical reviewer</option><option value="reader">Read-only engineer</option></select></label>}</div>
+      {notice && <div className="notice" role="status"><span>{notice}</span><div><Button variant="ghost" size="icon-sm" aria-label="Refresh workspace" onClick={reload}><RefreshCw size={14}/></Button><Button variant="ghost" size="icon-sm" aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={14}/></Button></div></div>}
+      <main id="main-content" className="content-region">{children}</main></div><Onboarding actor={actor}/></div>;
+}
+function Nav({ href, icon, label, active }: { href: string; icon: ReactNode; label: string; active: boolean }) { return <Link href={href} className={`nav-link ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} title={label}>{icon}<span className="nav-copy">{label}</span></Link>; }
