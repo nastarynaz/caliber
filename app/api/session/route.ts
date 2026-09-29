@@ -14,6 +14,6 @@ export async function POST(request: Request) {
   } catch (e) { return apiError(e); }
 }
 export async function DELETE(request: Request) {
-  try { checkOrigin(request); if (mode() === "connected") await (await supabaseServer()).auth.signOut(); (await cookies()).delete("kh_session"); return Response.json({ ok: true }); }
+  try { checkOrigin(request); if (mode() === "connected") await (await supabaseServer()).auth.signOut(); const jar = await cookies(); jar.delete("kh_session"); jar.delete("kh_demo_role"); return Response.json({ ok: true }); }
   catch (e) { return apiError(e); }
 }

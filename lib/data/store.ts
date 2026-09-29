@@ -18,6 +18,11 @@ const root = process.env.HUB_DEMO_DATA_DIR
     : path.join(process.cwd(), ".local-data");
 const roles: Role[] = ["engineer", "controller", "reviewer", "reader"];
 type Session = { actor: Actor; state: HubState; expires: number };
+const demoCookieOptions = { httpOnly: true, sameSite: "lax" as const, secure: process.env.COOKIE_SECURE === "true", path: "/", maxAge: 8 * 3600 };
+function demoActor(role: Role): Actor {
+  const names = { engineer: "Alex · Demo engineer", controller: "Sam · Demo controller", reviewer: "Morgan · Demo reviewer", reader: "Taylor · Demo reader" };
+  return { id: `demo-${role}`, name: names[role], role, mode: "demo" };
+}
 const locks = new Map<string, Promise<unknown>>();
 async function exclusive<T>(key: string, work: () => Promise<T>): Promise<T> {
   const before = locks.get(key) ?? Promise.resolve();
@@ -44,14 +49,18 @@ export async function startDemo(role: string) {
   let previous: Session | null = null;
   if (id) { try { previous = await readSession(id); } catch { id = undefined; } }
   id ??= crypto.randomUUID();
-  const names = { engineer: "Alex · Demo engineer", controller: "Sam · Demo controller", reviewer: "Morgan · Demo reviewer", reader: "Taylor · Demo reader" };
-  const actor: Actor = { id: `demo-${role}`, name: names[role as Role], role: role as Role, mode: "demo" };
+  const actor = demoActor(role as Role);
   await exclusive(id, async () => {
     const fresh = previous ? await readSession(id!) : null;
     const state = fresh?.state ?? JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8"));
     await saveSession(id!, { actor, state, expires: Date.now() + 8 * 3600000 });
   });
-  jar.set("kh_session", id, { httpOnly: true, sameSite: "lax", secure: process.env.COOKIE_SECURE === "true", path: "/", maxAge: 8 * 3600 });
+  jar.set("kh_session", id, demoCookieOptions);
+  // Vercel may serve the redirect after login from another serverless instance,
+  // whose temporary directory cannot see the session file written above. Keep
+  // only the selected demo persona in a second HTTP-only cookie so that an
+  // ephemeral demo session can be recreated on that instance.
+  jar.set("kh_demo_role", role, demoCookieOptions);
   return actor;
 }
 export async function session() {
@@ -63,8 +72,18 @@ export async function session() {
     if (!profile || !roles.includes(profile.role)) throw new DomainError("No workspace role is assigned.", 403);
     return { id: userId, actor: { id: userId, name: profile.display_name, role: profile.role, mode: "connected" } as Actor };
   }
-  const id = (await cookies()).get("kh_session")?.value ?? "";
-  const entry = await readSession(id); return { id, actor: entry.actor };
+  const jar = await cookies();
+  const id = jar.get("kh_session")?.value ?? "";
+  try {
+    const entry = await readSession(id); return { id, actor: entry.actor };
+  } catch (error) {
+    const role = jar.get("kh_demo_role")?.value;
+    if (!/^[a-f0-9-]{36}$/.test(id) || !roles.includes(role as Role)) throw error;
+    const actor = demoActor(role as Role);
+    const state = JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8")) as HubState;
+    await saveSession(id, { actor, state, expires: Date.now() + 8 * 3600000 });
+    return { id, actor };
+  }
 }
 export async function snapshot() {
   const current = await session();
