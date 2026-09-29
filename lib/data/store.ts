@@ -1,13 +1,21 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Actor, Command, HubState, Role } from "@/lib/domain/types";
 import { applyCommand, DomainError, visibleState } from "@/lib/domain/workflow";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const mode = () => process.env.HUB_MODE === "connected" ? "connected" : process.env.HUB_MODE === "demo" || process.env.NODE_ENV !== "production" ? "demo" : "setup";
-const root = path.join(process.cwd(), ".local-data");
+// Deployed/serverless bundles are normally read-only. Keep the deterministic
+// demo usable for previews by writing to the platform temp directory. This is
+// intentionally ephemeral; connected mode persists through Supabase instead.
+const root = process.env.HUB_DEMO_DATA_DIR
+  ? path.resolve(process.env.HUB_DEMO_DATA_DIR)
+  : process.env.NODE_ENV === "production"
+    ? path.join(tmpdir(), "caliber-knowledge-hub")
+    : path.join(process.cwd(), ".local-data");
 const roles: Role[] = ["engineer", "controller", "reviewer", "reader"];
 type Session = { actor: Actor; state: HubState; expires: number };
 const locks = new Map<string, Promise<unknown>>();

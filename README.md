@@ -15,7 +15,20 @@ Open http://localhost:3000. Development defaults to isolated demo mode. Choose E
 
 For explicit configuration, create `.env.local` using `.env.example`. Set `NEXT_PUBLIC_SITE_URL` to the exact browser origin, including port: localhost and 127.0.0.1 are different origins. Mutations enforce this origin. Set `COOKIE_SECURE=true` only for HTTPS.
 
-Production requires explicit `HUB_MODE=demo` or `HUB_MODE=connected`; backend errors never fall back to demo. Local persistence uses private `.local-data/` files and a process-local write lock. This is for a **single-process local demo**, not multi-instance/serverless production or public anonymous hosting. Session/file cleanup is not scheduled. Do not upload confidential plant data.
+Production requires explicit `HUB_MODE=demo` or `HUB_MODE=connected`; backend errors never fall back to demo. Local development persists demo sessions in private `.local-data/` files. Production demo mode writes to the platform temporary directory so a serverless preview can run, but that storage is ephemeral and a session can reset between instances or deployments. Use `HUB_MODE=connected` with Supabase for a stable multi-instance deployment. Session/file cleanup is not scheduled. Do not upload confidential plant data.
+
+### Deploying a preview
+
+The repository root is already the Next.js application, so no subdirectory/root override is needed. Add these production environment variables in the hosting platform:
+
+```bash
+HUB_MODE=demo
+NEXT_PUBLIC_SITE_URL=https://your-exact-domain.example
+COOKIE_SECURE=true
+GEMINI_ENABLED=false
+```
+
+Redeploy after saving the variables. Preview deployments with a different generated hostname need their own exact `NEXT_PUBLIC_SITE_URL`, or leave that variable unset so the application validates against the incoming origin. Source PDFs and P&ID originals under ignored `data/files/` are not included in Git deployments; connected deployments should place them in the private Supabase `hub-sources` bucket.
 
 ## Source data
 
@@ -26,6 +39,16 @@ Production requires explicit `HUB_MODE=demo` or `HUB_MODE=connected`; backend er
 - Imported references start unapproved; printed document approval is not Hub approval.
 
 Metadata lives in `data/catalog.json` and `data/file-manifest.json`. Source files/previews live in private, Git-ignored `data/files/` and are delivered through authenticated API routes, never public assets.
+
+The eight supplied equipment references have been redrawn as code-native inline SVGs in the reusable `EquipmentVisual` component. It maps permanent equipment IDs to distinct vector drawings, includes accessible titles/descriptions and a fallback, and supports `thumbnail`, `compact`, and `hero` variants without loading raster assets:
+
+```tsx
+import { EquipmentVisual } from "@/components/knowledge-hub/equipment-visual";
+
+<EquipmentVisual equipment={equipment} variant="hero" showCaption />
+```
+
+The `/equipment` directory also composes all eight SVGs into a single P&amp;ID-inspired relationship map. Solid lines show conceptual process/product routing, dashed brown lines show recycle context, and dotted blue lines show utilities. Equipment fill is derived from governed Hub records: green means no active report, blue means an active report, amber means knowledge/source attention, and red is reserved for active reports containing critical/trip/emergency language. These are Hub record states, not live DCS measurements. Because the supplied P&amp;IDs are standalone training systems rather than one master plant drawing, the integrated topology is explicitly labeled conceptual and must not be used as an operating drawing.
 
 Run `pnpm import:pilot` to regenerate from the original Caliber workspace. It needs the previously validated extraction caches and sources referenced in `scripts/import-case-materials.mjs`. A standalone clone needs these inputs or securely transferred `data/files/`. Original source files and existing session snapshots are not changed.
 

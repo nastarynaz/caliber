@@ -5,6 +5,7 @@ import { applyCommand, visibleState, eligible } from "../lib/domain/workflow";
 import { answerQuestion } from "../lib/domain/retrieval";
 import { safeReturnPath } from "../lib/domain/navigation";
 import { validateCitations } from "../lib/domain/providers";
+import { equipmentCondition } from "../lib/domain/equipment-status";
 import type { Actor, HubState, Role } from "../lib/domain/types";
 const seed = (): HubState => JSON.parse(readFileSync(new URL("../data/catalog.json", import.meta.url), "utf8"));
 const actor = (role: Role): Actor => ({ id: role, name: `Test ${role}`, role, mode: "demo" });
@@ -123,4 +124,15 @@ test("manual processing has a separate failure and recovery gate", () => {
   s = command(s, "controller", "document.process", id, { text: "Synthetic transcribed text", comment: "Manual test transcription, page 1" });
   assert.equal(s.documents[0].processing, "succeeded"); assert.equal(s.documents[0].review, "not_submitted");
   assert.ok(!eligible(s.documents[0]));
+});
+test("equipment map status is derived from governed Hub records", () => {
+  let s = seed();
+  assert.equal(equipmentCondition(s.equipment[1], s).condition, "healthy");
+  s = command(s, "engineer", "case.create", undefined, { equipmentId: "EQP-000002", title: "Dryer observation", symptom: "Unusual sound", observedAt: "2026-01-01T01:00:00Z" });
+  assert.equal(equipmentCondition(s.equipment[1], s).condition, "in_report");
+  let critical = seed();
+  critical = command(critical, "engineer", "case.create", undefined, { equipmentId: "EQP-000003", title: "Emergency trip", symptom: "High-high pressure trip reported", observedAt: "2026-01-01T01:00:00Z" });
+  assert.equal(equipmentCondition(critical.equipment[2], critical).condition, "critical");
+  const attention = seed(); attention.documents[0].processing = "failed";
+  assert.equal(equipmentCondition(attention.equipment[0], attention).condition, "attention");
 });
