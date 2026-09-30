@@ -5,7 +5,6 @@ import Image from "next/image";
 import { ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { safeReturnPath } from "@/lib/domain/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 type Persona = {
   id: "engineer" | "reader" | "controller" | "reviewer";
@@ -79,10 +78,11 @@ const personaGroups: Array<{
   },
 ];
 
-export function Login({ mode }: { mode: string }) {
+export function Login({ mode, judgeAccessEnabled = false }: { mode: string; judgeAccessEnabled?: boolean }) {
   const [role, setRole] = useState<Persona["id"]>("engineer");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const personaAccessReady = mode === "demo" || (mode === "connected" && judgeAccessEnabled);
 
   return (
     <main className="login-screen">
@@ -107,21 +107,22 @@ export function Login({ mode }: { mode: string }) {
       <section className="login-form-section">
         <div className="login-form">
           <p className="eyebrow">CHANDRA ASRI KNOWLEDGE HUB</p>
-          <h2>{mode === "demo" ? "Choose how you work" : "Sign in"}</h2>
-          <p className="muted">{mode === "demo" ? "The pilot demonstrates two field responsibilities and two control-and-governance responsibilities. Each persona sees only the actions appropriate to its role." : "Use your authorized engineering account."}</p>
+          <h2>Choose how you work</h2>
+          <p className="muted">The pilot demonstrates two field responsibilities and two control-and-governance responsibilities. Each persona uses its assigned permission boundary.</p>
           <form onSubmit={async event => {
-            event.preventDefault(); setBusy(true); setError(""); const form = new FormData(event.currentTarget);
+            event.preventDefault(); setBusy(true); setError("");
             try {
-              const response = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(mode === "demo" ? { role } : { email: form.get("email"), password: form.get("password") }) });
+              const payload = mode === "demo" ? { role } : { judgeRole: role };
+              const response = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
               const body = await response.json(); if (!response.ok) throw new Error(body.error);
               const target = new URLSearchParams(window.location.search).get("next"); window.location.assign(safeReturnPath(target));
             } catch (signInError) { setError(signInError instanceof Error ? signInError.message : "Sign-in failed."); } finally { setBusy(false); }
           }}>
-            {mode === "demo" ? <fieldset className="persona-options"><legend className="sr-only">Demo persona</legend>{personaGroups.map(group => <section className="persona-group" aria-labelledby={`${group.id}-title`} key={group.id}><header><p id={`${group.id}-title`}>{group.label}</p><span>{group.description}</span></header><div className="persona-list">{group.personas.map(persona => <label key={persona.id} className={role === persona.id ? "selected" : ""}><input type="radio" name="role" value={persona.id} checked={role === persona.id} onChange={() => setRole(persona.id)} /><span className="persona-photo"><Image src={persona.image} alt={persona.imageAlt} width={1200} height={800} sizes="88px" style={{ objectPosition: persona.imagePosition }} /></span><span className="persona-content"><span className="persona-title-line"><strong>{persona.title}</strong><span aria-hidden="true" className="persona-check"><Check size={12} /></span></span><span className="persona-responsibility">{persona.responsibility}</span><span className="persona-capabilities">{persona.capabilities.map(capability => <small key={capability}>{capability}</small>)}</span><span className="persona-boundary"><b>Boundary</b> {persona.boundary}</span></span></label>)}</div></section>)}</fieldset> : <div className="login-credentials"><label className="form-field">Email<Input name="email" type="email" required autoComplete="username" /></label><label className="form-field">Password<Input name="password" type="password" required autoComplete="current-password" /></label></div>}
+            <fieldset className="persona-options"><legend className="sr-only">Judge persona</legend>{personaGroups.map(group => <section className="persona-group" aria-labelledby={`${group.id}-title`} key={group.id}><header><p id={`${group.id}-title`}>{group.label}</p><span>{group.description}</span></header><div className="persona-list">{group.personas.map(persona => <label key={persona.id} className={role === persona.id ? "selected" : ""}><input type="radio" name="role" value={persona.id} checked={role === persona.id} onChange={() => setRole(persona.id)} /><span className="persona-photo"><Image src={persona.image} alt={persona.imageAlt} width={1200} height={800} sizes="88px" style={{ objectPosition: persona.imagePosition }} /></span><span className="persona-content"><span className="persona-title-line"><strong>{persona.title}</strong><span aria-hidden="true" className="persona-check"><Check size={12} /></span></span><span className="persona-responsibility">{persona.responsibility}</span><span className="persona-capabilities">{persona.capabilities.map(capability => <small key={capability}>{capability}</small>)}</span><span className="persona-boundary"><b>Boundary</b> {persona.boundary}</span></span></label>)}</div></section>)}</fieldset>
             {error && <p className="error-text" role="alert">{error}</p>}
-            <Button className="login-submit" size="lg" type="submit" loading={busy} disabled={mode === "setup"}>{mode === "demo" ? "Enter demo workspace" : "Sign in"}<ArrowRight size={16} /></Button>
+            <Button className="login-submit" size="lg" type="submit" loading={busy} disabled={!personaAccessReady}>Enter as selected persona<ArrowRight size={16} /></Button>
           </form>
-          <p className="login-note">{mode === "demo" ? "Demo personas simulate permission boundaries for this pilot. Production access must use assigned accounts and approved roles. Training/sample data only; no live sensor connection." : "Demo personas are disabled in connected mode. Configure HUB_MODE and contact your administrator for access."}</p>
+          <p className="login-note">{personaAccessReady ? (mode === "connected" ? "These personas are restricted Supabase accounts connected to the same pilot dataset. They do not enable local fallback data or bypass RLS. Training/sample data only; no live sensor connection." : "Demo personas simulate permission boundaries for this pilot. Training/sample data only; no live sensor connection.") : "Persona access is not configured for this environment. Contact the workspace administrator."}</p>
         </div>
       </section>
     </main>

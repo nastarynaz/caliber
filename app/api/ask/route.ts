@@ -2,7 +2,8 @@ import { snapshot } from "@/lib/data/store";
 import { checkOrigin, readJson, apiError } from "@/lib/data/http";
 import { answerQuestion } from "@/lib/domain/retrieval";
 import { DomainError } from "@/lib/domain/workflow";
-import { geminiEnabled, groundedGeminiAnswer } from "@/lib/gemini/grounding";
+import { geminiEnabled, groundedGeminiAnswer, groundedGeminiDatabaseAnswer } from "@/lib/gemini/grounding";
+import { supabaseServer } from "@/lib/supabase/server";
 
 const geminiWindows = new Map<string, { started: number; count: number }>();
 function reserveGeminiRequest(actorId: string) {
@@ -20,7 +21,11 @@ export async function POST(request: Request) {
     if (!geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(data.question)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
     reserveGeminiRequest(actor.id);
     let answer;
-    try { answer = await groundedGeminiAnswer(state, data.question, equipmentId, broad, request.signal); }
+    try {
+      answer = actor.mode === "connected"
+        ? await groundedGeminiDatabaseAnswer(state, await supabaseServer(), data.question, equipmentId, broad, request.signal)
+        : await groundedGeminiAnswer(state, data.question, equipmentId, broad, request.signal);
+    }
     catch (error) { console.error("Gemini request failed", error); throw new DomainError("Gemini is configured but unavailable. No generated answer was returned; you can still inspect sources directly.", 503); }
     return Response.json(answer ?? direct, { headers: { "Cache-Control": "private, no-store" } });
   } catch(e) { return apiError(e); }

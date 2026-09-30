@@ -1,5 +1,6 @@
 import "server-only";
 import { GoogleGenAI } from "@google/genai";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Answer, HubState } from "@/lib/domain/types";
 import type { AuthorizedPassage } from "@/lib/domain/providers";
 import { validateCitations } from "@/lib/domain/providers";
@@ -60,6 +61,46 @@ export function authorizedPassages(state: HubState, question: string, equipmentI
     .filter(item => item.relevance > 0 || query.length === 0).sort((a, b) => b.relevance - a.relevance).slice(0, 8).map(item => item.passage);
 }
 
+type VectorMatch = { chunk_id: string; version_id: string; page: number; page_end: number | null; content: string; metadata: Record<string, unknown>; similarity: number };
+type VersionEvidence = { id: string; document_id: string; title: string; number: string; revision: string | null; type: string; review: string; publication: string; applicability: string };
+
+export async function authorizedDatabasePassages(db: SupabaseClient, question: string, equipmentId: string, broad: boolean): Promise<AuthorizedPassage[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return [];
+  const dimensions = Number(process.env.GEMINI_EMBEDDING_DIMENSIONS || 768);
+  const ai = new GoogleGenAI({ apiKey });
+  const embedded = await ai.models.embedContent({
+    model: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-2",
+    contents: question,
+    config: { outputDimensionality: dimensions, taskType: "RETRIEVAL_QUERY" },
+  });
+  const vector = embedded.embeddings?.[0]?.values;
+  if (!vector || vector.length !== dimensions) throw new Error("Query embedding dimension does not match the governed vector index.");
+  const matched = await db.rpc("hub_match_document_chunks", { p_query_embedding: vector, p_match_count: 8, p_equipment_id: broad ? null : equipmentId });
+  if (matched.error) throw new Error(`Authorized vector retrieval failed: ${matched.error.message}`);
+  const rows = (matched.data || []) as VectorMatch[];
+  if (!rows.length) return [];
+  const versionIds = [...new Set(rows.map(row => row.version_id))];
+  const [versionsResult, linksResult] = await Promise.all([
+    db.from("document_version").select("id,document_id,title,number,revision,type,review,publication,applicability").in("id", versionIds),
+    db.from("document_equipment").select("version_id,equipment_id").in("version_id", versionIds),
+  ]);
+  if (versionsResult.error || linksResult.error) throw new Error("Authorized source provenance could not be loaded.");
+  const versions = new Map((versionsResult.data as VersionEvidence[]).map(version => [version.id, version]));
+  const equipmentByVersion = new Map<string, string[]>();
+  for (const link of linksResult.data || []) equipmentByVersion.set(link.version_id, [...(equipmentByVersion.get(link.version_id) || []), link.equipment_id]);
+  return rows.flatMap(row => {
+    const version = versions.get(row.version_id);
+    if (!version || version.review !== "approved" || version.publication !== "published" || version.applicability !== "current") return [];
+    const locator = typeof row.metadata?.locator_label === "string" ? row.metadata.locator_label : `Page ${row.page}${row.page_end && row.page_end !== row.page ? `–${row.page_end}` : ""}`;
+    return [{
+      id: `chunk:${row.chunk_id}`, versionId: row.version_id, equipmentIds: equipmentByVersion.get(row.version_id) || [],
+      extractionRunId: "database-vector-retrieval", page: row.page, category: "approved_reference" as const, text: clipped(row.content),
+      citation: { id: `chunk:${row.chunk_id}`, label: version.number || version.title, locator: `Rev ${version.revision ?? "not recorded"} · ${locator} · approved/current`, href: `/documents/${version.document_id}/versions/${version.id}` },
+    }];
+  });
+}
+
 type GeminiPayload = { label: string; answer: string; evidence: string; limitations: string; citationIds: string[] };
 function parsePayload(value: string): GeminiPayload {
   const parsed: unknown = JSON.parse(value);
@@ -69,8 +110,7 @@ function parsePayload(value: string): GeminiPayload {
   return item as GeminiPayload;
 }
 
-export async function groundedGeminiAnswer(state: HubState, question: string, equipmentId: string, broad: boolean, signal?: AbortSignal): Promise<Answer | null> {
-  const passages = authorizedPassages(state, question, equipmentId, broad);
+async function generateGroundedAnswer(state: HubState, passages: AuthorizedPassage[], question: string, equipmentId: string, broad: boolean, signal?: AbortSignal): Promise<Answer | null> {
   if (!passages.length) return null;
   const maximum = Math.max(4000, Math.min(60000, Number(process.env.GEMINI_MAX_EVIDENCE_CHARS) || 30000));
   let used = 0; const evidence = passages.filter(passage => { const next = used + passage.text.length; if (next > maximum) return false; used = next; return true; });
@@ -95,4 +135,13 @@ export async function groundedGeminiAnswer(state: HubState, question: string, eq
   } finally {
     clearTimeout(timeout); signal?.removeEventListener("abort", abort);
   }
+}
+
+export async function groundedGeminiAnswer(state: HubState, question: string, equipmentId: string, broad: boolean, signal?: AbortSignal): Promise<Answer | null> {
+  return generateGroundedAnswer(state, authorizedPassages(state, question, equipmentId, broad), question, equipmentId, broad, signal);
+}
+
+export async function groundedGeminiDatabaseAnswer(state: HubState, db: SupabaseClient, question: string, equipmentId: string, broad: boolean, signal?: AbortSignal): Promise<Answer | null> {
+  const passages = await authorizedDatabasePassages(db, question, equipmentId, broad);
+  return generateGroundedAnswer(state, passages, question, equipmentId, broad, signal);
 }

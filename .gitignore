@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+__pycache__/
+*.pyc
 
 # debug
 npm-debug.log*
@@ -38,6 +40,7 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 /artifacts/
+/reports/ingestion/
 
 # vercel
 .vercel

@@ -13,12 +13,25 @@ insert into public.document_version(id,document_id,title,number,type,source,file
 values('DEMO-RLS-VER','DEMO-RLS-DOC','Synthetic multi-asset document','DEMO-RLS','TEST','Synthetic RLS test','test.pdf','application/pdf',repeat('0',64));
 insert into public.document_equipment values('DEMO-RLS-VER','DEMO-RLS-A'),('DEMO-RLS-VER','DEMO-RLS-B');
 insert into public.document_acl values('00000000-0000-4000-8000-000000000091','DEMO-RLS-DOC');
+insert into public.processing_job(id,idempotency_key,version_id,kind,status)
+values('00000000-0000-4000-8000-000000000092','rls:extract','DEMO-RLS-VER','extract','succeeded');
+insert into public.extraction_run(id,version_id,job_id,method,status)
+values('00000000-0000-4000-8000-000000000093','DEMO-RLS-VER','00000000-0000-4000-8000-000000000092','synthetic','succeeded');
+insert into public.document_page(id,version_id,locator_type,locator_label,page_number,raw_text,normalized_text,extraction_state,processor)
+values('00000000-0000-4000-8000-000000000094','DEMO-RLS-VER','pdf_page','Page 1',1,'synthetic restricted text','synthetic restricted text','succeeded','synthetic');
+insert into public.extraction_candidate(id,extraction_id,version_id,page_id,candidate_type,raw_text,locator_type,locator_label,source_excerpt,fingerprint)
+values('00000000-0000-4000-8000-000000000095','00000000-0000-4000-8000-000000000093','DEMO-RLS-VER','00000000-0000-4000-8000-000000000094','parameter','synthetic','pdf_page','Page 1','synthetic',repeat('2',64));
+insert into public.ingestion_batch(id,manifest_checksum,source_root_label,environment,project_ref,status,total_files,total_bytes,created_by_name)
+values('00000000-0000-4000-8000-000000000096',repeat('1',64),'Synthetic','development','local','completed',1,1,'RLS test');
 
 set local role authenticated;
 set local request.jwt.claim.sub='00000000-0000-4000-8000-000000000091';
 do $$ begin
   if (select count(*) from public.equipment)<>1 then raise exception 'Equipment scope leaked'; end if;
   if exists(select 1 from public.document_version) then raise exception 'Multi-asset document bypass'; end if;
+  if exists(select 1 from public.document_page) then raise exception 'Document page bypass'; end if;
+  if exists(select 1 from public.extraction_candidate) then raise exception 'Extraction candidate bypass'; end if;
+  if exists(select 1 from public.ingestion_batch) then raise exception 'Reader can see governance batches'; end if;
   if (select jsonb_array_length(public.hub_snapshot()->'documents'))<>0 then raise exception 'Snapshot bypass'; end if;
   if has_table_privilege(current_user,'public.audit_event','UPDATE') then raise exception 'Audit is writable'; end if;
   if has_table_privilege(current_user,'public.app_user','UPDATE') then raise exception 'Self role elevation'; end if;
@@ -29,12 +42,16 @@ insert into public.equipment_access values('00000000-0000-4000-8000-000000000091
 set local role authenticated;
 do $$ begin
   if (select count(*) from public.document_version)<>1 then raise exception 'Explicit grants did not allow source'; end if;
+  if (select count(*) from public.document_page)<>1 then raise exception 'Authorized page unavailable'; end if;
+  if (select count(*) from public.extraction_candidate)<>1 then raise exception 'Authorized candidate unavailable'; end if;
 end $$;
 reset role;
 update public.document_version set access='reviewers' where id='DEMO-RLS-VER';
 set local role authenticated;
 do $$ begin
   if exists(select 1 from public.document_version) then raise exception 'Restricted document leaked'; end if;
+  if exists(select 1 from public.document_page) then raise exception 'Restricted page leaked'; end if;
+  if exists(select 1 from public.extraction_candidate) then raise exception 'Restricted candidate leaked'; end if;
 end $$;
 reset role;
 delete from public.document_acl where document_id='DEMO-RLS-DOC';
@@ -42,6 +59,8 @@ set local role authenticated;
 do $$ begin
   if exists(select 1 from public.document_version) then raise exception 'Revoked document leaked'; end if;
   if has_function_privilege('anon','public.hub_snapshot()','EXECUTE') then raise exception 'Anonymous RPC is exposed'; end if;
+  if has_function_privilege('anon','public.hub_match_document_chunks(extensions.vector,integer,text)','EXECUTE') then raise exception 'Anonymous vector search is exposed'; end if;
+  if has_function_privilege('authenticated','public.hub_worker_activate_version(text)','EXECUTE') then raise exception 'Authenticated user can activate indexed content'; end if;
 end $$;
 reset role;
 rollback;

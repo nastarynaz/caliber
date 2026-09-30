@@ -16,7 +16,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (rowError || !objectPath) throw new DomainError("Source file unavailable. Import its private Storage object first.", 404);
       const { data, error } = await db.storage.from("hub-sources").download(objectPath);
       if (error || !data) throw new DomainError("Source file unavailable.", 404);
-      return new Response(data, { headers: { "Content-Type": preview ? "image/png" : doc.mime, "Cache-Control": "private, no-store", "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff" } });
+      const disposition = doc.mime === "application/pdf" || doc.mime === "image/png" ? "inline" : `attachment; filename="${doc.filename.replace(/["\\\r\n]/g, "-")}"`;
+      return new Response(data, { headers: { "Content-Type": preview ? "image/png" : doc.mime, "Cache-Control": "private, no-store", "Content-Disposition": disposition, "X-Content-Type-Options": "nosniff" } });
     }
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), "data/file-manifest.json"), "utf8"));
     let bytes: Buffer<ArrayBuffer>;
@@ -27,7 +28,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     } else {
       if (!/^DEMO-VER-[a-f0-9-]{36}$/.test(id)) throw new DomainError("Source unavailable.", 404);
       const { id: sid } = await session();
-      bytes = await readFile(path.join(process.cwd(), ".local-data", sid, `${id}.${doc.mime === "application/pdf" ? "pdf" : "png"}`));
+      const extension: Record<string,string> = { "application/pdf": "pdf", "image/png": "png", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx", "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx" };
+      bytes = await readFile(path.join(process.cwd(), ".local-data", sid, `${id}.${extension[doc.mime] || "bin"}`));
     }
     return new Response(bytes, { headers: { "Content-Type": preview && manifest[id]?.preview ? "image/png" : doc.mime, "Cache-Control": "private, no-store", "Content-Disposition": "inline", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "frame-ancestors 'self'" } });
   } catch (e) { return apiError(e); }

@@ -9,16 +9,18 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function POST(request: Request) {
   try {
     checkOrigin(request); const current = await session(); requireRole(current.actor, ["controller"]);
+    const supported: Record<string,string> = { "application/pdf": "pdf", "image/png": "png", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx", "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx" };
     if (Number(request.headers.get("content-length") || 0) > 11000000) throw new DomainError("Maximum upload size is 10 MB.", 413);
     const form = await new Response(await readBounded(request, 11000000), { headers: { "Content-Type": request.headers.get("content-type") || "" } }).formData(); const file = form.get("file");
-    if (!(file instanceof File) || file.size > 10000000 || !["application/pdf", "image/png"].includes(file.type)) throw new DomainError("Choose a PDF or PNG under 10 MB.");
+    if (!(file instanceof File) || file.size > 10000000 || !supported[file.type]) throw new DomainError("Choose a PDF, PNG, XLSX, or PPTX under 10 MB.");
     const bytes = Buffer.from(await file.arrayBuffer());
-    if (file.type === "application/pdf" ? bytes.subarray(0, 5).toString() !== "%PDF-" : bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") throw new DomainError("File signature does not match its type.");
+    const signatureValid = file.type === "application/pdf" ? bytes.subarray(0, 5).toString() === "%PDF-" : file.type === "image/png" ? bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a" : bytes.subarray(0, 4).toString("hex") === "504b0304";
+    if (!signatureValid) throw new DomainError("File signature does not match its type.");
     const checksum = createHash("sha256").update(bytes).digest("hex");
     const existingDocumentId = String(form.get("documentId") || "");
     if (current.actor.mode === "connected") {
       const versionId = `VER-${crypto.randomUUID()}`; const documentId = existingDocumentId || `DOC-${crypto.randomUUID()}`;
-      const extension = file.type === "application/pdf" ? "pdf" : "png"; const storagePath = `sources/${documentId}/${versionId}.${extension}`;
+      const extension = supported[file.type]; const storagePath = `sources/${documentId}/${versionId}.${extension}`;
       const admin = supabaseAdmin(); const { error: storageError } = await admin.storage.from("hub-sources").upload(storagePath, bytes, { contentType: file.type, upsert: false, cacheControl: "3600" });
       if (storageError) throw new DomainError("Private Storage upload failed. Verify the service role and hub-sources bucket.", 503);
       const db = await supabaseServer();
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
       const equipmentId = String(form.get("equipmentId") || "");
       if (!state.equipment.some(e => e.id === equipmentId)) throw new DomainError("Choose valid equipment.");
       const dir = path.join(process.cwd(), ".local-data", current.id); await mkdir(dir, { recursive: true });
-      await writeFile(path.join(dir, `${id}.${file.type === "application/pdf" ? "pdf" : "png"}`), bytes, { flag: "wx", mode: 0o600 });
+      await writeFile(path.join(dir, `${id}.${supported[file.type]}`), bytes, { flag: "wx", mode: 0o600 });
       const event = { id: crypto.randomUUID(), at: new Date().toISOString(), actor: actor.name, action: "document.upload", comment: "File stored privately. Automatic extraction is not configured." };
       state.documents.unshift({ id, documentId, title: prior?.title || file.name, number: prior?.number || "", type: prior?.type || "REFERENCE", revision: null, equipmentIds: [equipmentId], source: "Manual demo upload", filename: file.name, mime: file.type, checksum, processing: "queued", metadata: "incomplete", review: "not_submitted", publication: "unpublished", indexing: "not_started", applicability: "candidate", access: prior?.access || "team", owner: "", purpose: "", text: "", events: [event] });
       state.audit.unshift(event); state.revision++; return state;
