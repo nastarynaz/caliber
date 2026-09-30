@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Minus, Plus, Scan } from "lucide-react";
 import type { HubState } from "@/lib/domain/types";
-import { equipmentCondition, type EquipmentCondition } from "@/lib/domain/equipment-status";
+import { equipmentCondition, type EquipmentCondition, type EquipmentConditionResult } from "@/lib/domain/equipment-status";
 import { EquipmentVisual } from "./equipment-visual";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -16,7 +16,8 @@ const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1100;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2;
-const ZOOM_STEP = 0.15;
+const ZOOM_STEP = 0.1;
+const WHEEL_ZOOM_SENSITIVITY = 0.001;
 
 const placements: Placement[] = [
   { id: "EQP-000001", left: 210, top: 221, inlet: ["Storage tank", "12-T-01"], outlet: ["To reactor", "DC-4501"] },
@@ -36,11 +37,16 @@ const statusLabels: Record<EquipmentCondition, string> = {
   critical: "Critical",
 };
 
-export function EquipmentProcessMap({ state }: { state: HubState }) {
+export function EquipmentProcessMap({ state, conditionOverrides, focusEquipmentId }: { state: HubState; conditionOverrides?: Record<string, EquipmentConditionResult>; focusEquipmentId?: string }) {
   const [zoom, setZoom] = useState(1);
+  const [panning, setPanning] = useState(false);
+  const zoomRef = useRef(zoom);
   const viewport = useRef<HTMLDivElement>(null);
   const drawing = useRef<HTMLDivElement>(null);
-  const pendingCenter = useRef<{ x: number; y: number } | null>(null);
+  const drag = useRef<{ pointerId: number; x: number; y: number; left: number; top: number } | null>(null);
+  const pendingCenter = useRef<{ x: number; y: number; clientX: number; clientY: number } | null>(null);
+  const wheelFrame = useRef<number | null>(null);
+  const wheelTarget = useRef(zoom);
   const [viewMode, setViewMode] = useState<"auto" | "fit" | "manual">("auto");
   const fittedZoom = (element: HTMLDivElement) => Math.max(MIN_ZOOM, Math.min(1,
     (element.clientWidth - 32) / CANVAS_WIDTH,
@@ -49,7 +55,7 @@ export function EquipmentProcessMap({ state }: { state: HubState }) {
   const fitCanvas = () => {
     if (!viewport.current) return;
     pendingCenter.current = null;
-    setZoom(fittedZoom(viewport.current));
+    const fit = fittedZoom(viewport.current); zoomRef.current = fit; wheelTarget.current = fit; setZoom(fit);
     setViewMode("fit");
     viewport.current.scrollTo({ left: 0, top: 0 });
   };
@@ -58,7 +64,8 @@ export function EquipmentProcessMap({ state }: { state: HubState }) {
     if (!element || viewMode === "manual") return;
     const observer = new ResizeObserver(() => {
       const fit = fittedZoom(element);
-      setZoom(viewMode === "auto" && element.clientWidth < 700 ? Math.max(.7, fit) : fit);
+      const next = viewMode === "auto" && element.clientWidth < 700 ? Math.max(.7, fit) : fit;
+      zoomRef.current = next; wheelTarget.current = next; setZoom(next);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -68,24 +75,39 @@ export function EquipmentProcessMap({ state }: { state: HubState }) {
     const canvas = drawing.current;
     const center = pendingCenter.current;
     if (!element || !canvas || !center) return;
-    const view = element.getBoundingClientRect();
     const bounds = canvas.getBoundingClientRect();
-    element.scrollLeft += bounds.left + center.x * zoom - (view.left + element.clientWidth / 2);
-    element.scrollTop += bounds.top + center.y * zoom - (view.top + element.clientHeight / 2);
+    element.scrollLeft += bounds.left + center.x * zoom - center.clientX;
+    element.scrollTop += bounds.top + center.y * zoom - center.clientY;
     pendingCenter.current = null;
   }, [zoom]);
-  const setBoundedZoom = (next: number) => {
-    const value = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(next.toFixed(2))));
-    if (value === zoom) return;
+  useEffect(() => {
+    if (!focusEquipmentId || !viewport.current) return;
+    const placement = placements.find(item => item.id === focusEquipmentId);
+    if (!placement) return;
+    const element = viewport.current;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const currentZoom = zoomRef.current;
+    element.scrollTo({ left: Math.max(0, (placement.left + 110) * currentZoom - element.clientWidth / 2), top: Math.max(0, (placement.top + 90) * currentZoom - element.clientHeight / 2), behavior: reduced ? "auto" : "smooth" });
+  }, [focusEquipmentId]);
+  useEffect(() => () => { if (wheelFrame.current !== null) cancelAnimationFrame(wheelFrame.current); }, []);
+  const setBoundedZoom = (next: number, focal?: { clientX: number; clientY: number }) => {
+    const currentZoom = zoomRef.current;
+    const value = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(next.toFixed(3))));
+    if (value === currentZoom) return;
     if (viewport.current && drawing.current) {
       const view = viewport.current.getBoundingClientRect();
       const bounds = drawing.current.getBoundingClientRect();
+      const clientX = focal?.clientX ?? view.left + viewport.current.clientWidth / 2;
+      const clientY = focal?.clientY ?? view.top + viewport.current.clientHeight / 2;
       pendingCenter.current = {
-        x: (view.left + viewport.current.clientWidth / 2 - bounds.left) / zoom,
-        y: (view.top + viewport.current.clientHeight / 2 - bounds.top) / zoom,
+        x: (clientX - bounds.left) / currentZoom,
+        y: (clientY - bounds.top) / currentZoom,
+        clientX,
+        clientY,
       };
     }
     setViewMode("manual");
+    zoomRef.current = value; wheelTarget.current = value;
     setZoom(value);
   };
 
@@ -102,7 +124,25 @@ export function EquipmentProcessMap({ state }: { state: HubState }) {
     </div>
 
     <div className="process-map-stage">
-    <div className="process-map-scroll" ref={viewport} tabIndex={0} aria-label="Equipment canvas, scroll to explore. Equipment positions are fixed.">
+    <div className={`process-map-scroll ${panning ? "is-panning" : ""}`} ref={viewport} tabIndex={0} aria-label="Equipment canvas. Drag to pan and use the mouse wheel or controls to zoom. Equipment positions are fixed."
+      onPointerDown={event => {
+        if (event.button !== 0 || (event.target as HTMLElement).closest(".process-equipment-node,button,a")) return;
+        const element = viewport.current; if (!element) return;
+        element.setPointerCapture(event.pointerId); drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop }; setPanning(true);
+      }}
+      onPointerMove={event => { const start = drag.current; const element = viewport.current; if (!start || start.pointerId !== event.pointerId || !element) return; element.scrollLeft = start.left - (event.clientX - start.x); element.scrollTop = start.top - (event.clientY - start.y); }}
+      onPointerUp={event => { if (drag.current?.pointerId !== event.pointerId) return; drag.current = null; setPanning(false); viewport.current?.releasePointerCapture(event.pointerId); }}
+      onPointerCancel={() => { drag.current = null; setPanning(false); }}
+      onWheel={event => {
+        if (Math.abs(event.deltaY) < .1) return;
+        event.preventDefault();
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? event.currentTarget.clientHeight : 1;
+        const delta = Math.max(-80, Math.min(80, event.deltaY * unit));
+        wheelTarget.current = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, wheelTarget.current * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY)));
+        const focal = { clientX: event.clientX, clientY: event.clientY };
+        if (wheelFrame.current !== null) cancelAnimationFrame(wheelFrame.current);
+        wheelFrame.current = requestAnimationFrame(() => { wheelFrame.current = null; setBoundedZoom(wheelTarget.current, focal); });
+      }}>
       <div className="process-map-scaled" style={{ width: CANVAS_WIDTH * zoom, height: CANVAS_HEIGHT * zoom }}>
         <div className="process-map-canvas" ref={drawing} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${zoom})` }}>
           <svg className="process-map-lines" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} aria-hidden="true">
@@ -136,7 +176,7 @@ export function EquipmentProcessMap({ state }: { state: HubState }) {
           {placements.map(placement => {
             const equipment = state.equipment.find(item => item.id === placement.id);
             if (!equipment) return null;
-            const result = equipmentCondition(equipment, state);
+            const result = conditionOverrides?.[equipment.id] ?? equipmentCondition(equipment, state);
             const docs = state.documents.filter(document => document.equipmentIds.includes(equipment.id));
             const latest = state.cases.find(item => item.equipmentId === equipment.id);
 
@@ -158,9 +198,9 @@ export function EquipmentProcessMap({ state }: { state: HubState }) {
     </div>
 
     <div className="process-map-zoom" aria-label="Canvas zoom controls">
-      <button type="button" onClick={() => setBoundedZoom(zoom - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out"><Minus/></button>
+      <button type="button" onClick={() => setBoundedZoom(zoomRef.current - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out"><Minus/></button>
       <button type="button" className="process-map-zoom-value" onClick={() => setBoundedZoom(1)} title="Reset to 100%" aria-label={`Reset zoom, currently ${Math.round(zoom * 100)} percent`}>{Math.round(zoom * 100)}%</button>
-      <button type="button" onClick={() => setBoundedZoom(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in"><Plus/></button>
+      <button type="button" onClick={() => setBoundedZoom(zoomRef.current + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in"><Plus/></button>
       <span className="process-zoom-divider"/>
       <button type="button" onClick={fitCanvas} aria-label="Fit canvas" title="Fit all equipment"><Scan/></button>
     </div>

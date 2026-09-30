@@ -1,10 +1,19 @@
 import type { Answer, HubState } from "./types";
 import { eligible } from "./workflow";
+import { parameterStatus } from "./control-room";
 export function answerQuestion(state: HubState, question: string, equipmentId: string, broad = false): Answer {
   const q = question.trim().toLowerCase();
   const base: Answer = { label: "Insufficient evidence", text: "The accessible sources do not establish an answer to this question.", evidence: "No supported claim was generated.", limitations: "Keyword retrieval only. Refine your question or supply an observation for review.", citations: [], conflict: false, provider: "Deterministic retrieval" };
   if (!state.equipment.some(e => e.id === equipmentId)) return { ...base, text: "Choose equipment to establish your question's scope." };
   const docs = state.documents.filter(d => d.applicability !== "superseded" && d.publication !== "withdrawn" && (broad || d.equipmentIds.includes(equipmentId)));
+  if (/parameter|deviation|threshold|limit|priority|normal|critical|advisory|sil|voting/.test(q) && state.parameters?.length) {
+    const terms = q.split(/\W+/).filter(t => t.length > 2);
+    const scoped = state.parameters.filter(item => broad || item.equipmentId === equipmentId);
+    const ranked = scoped.map(item => ({ item, status: parameterStatus(item, item.currentValue), relevance: terms.filter(term => `${item.instrumentTag} ${item.name} ${item.sourceClass}`.toLowerCase().includes(term)).length }))
+      .filter(entry => /priority|deviation|critical|advisory/.test(q) ? entry.status === "critical" || entry.status === "advisory" : entry.relevance > 0)
+      .sort((a, b) => b.item.priority21 - a.item.priority21 || b.relevance - a.relevance).slice(0, 5);
+    if (ranked.length) return { ...base, label: "Partially supported", text: "The parameter registry contains relevant imported scenario values. These are workbook values, not live DCS readings or approved plant setpoints.", evidence: ranked.map(({ item, status }) => { const asset = state.equipment.find(equipment => equipment.id === item.equipmentId); return `${asset?.tag ?? item.equipmentId} · ${item.instrumentTag}: ${item.currentValue ?? "not available"} ${item.unit}; normal ${item.normalMin ?? "not available"}–${item.normalMax ?? "not available"}; ${status}; priority ${item.priority21}/21; ${item.reviewStatus}.`; }).join("\n"), limitations: "Status is calculated deterministically from the imported threshold record. Candidate, training, screening, and blocked values are not operational authority.", citations: ranked.map(({ item }) => { const asset = state.equipment.find(equipment => equipment.id === item.equipmentId); return { id: item.id, label: `${asset?.tag ?? item.equipmentId} · ${item.instrumentTag}`, locator: `${item.sourceLocator} · ${item.sourceClass} · ${item.reviewStatus}`, href: `/equipment/${item.equipmentId}` }; }), conflict: false };
+  }
   if (/trend|live|temperature over|thermal profile/.test(q)) return { ...base, text: "No timestamped operating measurements are available. A measured trend cannot be produced.", evidence: "Datasheet values are specifications, not sensor readings.", limitations: "Connect and validate a measurement source before plotting an operating trend." };
   if (/history|failure|vibrat|noise|seal|troubleshoot|incident/.test(q)) {
     const terms = q.split(/\W+/).filter(t => t.length > 3);

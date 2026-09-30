@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "tsx --test tests/domain.test.ts",
     "test:e2e": "playwright test",
-    "import:pilot": "node scripts/import-case-materials.mjs"
+    "import:pilot": "node scripts/import-case-materials.mjs",
+    "import:parameters": "node scripts/import-control-room-parameters.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

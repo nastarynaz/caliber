@@ -16,13 +16,40 @@ function value(data: Record<string, unknown>, key: string, required = false) {
   return v;
 }
 function ensure(condition: boolean, message: string) { if (!condition) throw new DomainError(message, 409); }
+function finiteNumber(data: Record<string, unknown>, key: string, nullable = false) {
+  if (nullable && (data[key] === null || data[key] === "")) return null;
+  const number = typeof data[key] === "number" ? data[key] : Number(data[key]);
+  if (!Number.isFinite(number)) throw new DomainError(`${key} must be a valid number.`);
+  return number;
+}
 export function applyCommand(original: HubState, actor: Actor, command: Command, now = new Date().toISOString()): HubState {
   if (command.expectedRevision !== original.revision) throw new DomainError("This workspace changed. Refresh before trying again.", 409);
   const state = structuredClone(original);
   const data = command.data ?? {};
   const id = command.id;
   const event: Event = { id: crypto.randomUUID(), at: now, actor: actor.name, action: command.action, comment: value(data, "comment") };
-  if (command.action.startsWith("document.")) {
+  if (command.action === "parameter.update") {
+    requireRole(actor, ["controller"]);
+    const parameter = state.parameters?.find(item => item.id === id);
+    if (!parameter) throw new DomainError("Parameter unavailable.", 404);
+    const before = structuredClone(parameter);
+    const numeric = ["baseValue", "normalMin", "normalMax", "advisory", "critical"] as const;
+    for (const key of numeric) if (key in data) parameter[key] = finiteNumber(data, key, true);
+    if ("unit" in data) parameter.unit = value(data, "unit", true);
+    if ("engineeringNote" in data) parameter.engineeringNote = value(data, "engineeringNote", true);
+    ensure(parameter.normalMin === null || parameter.normalMax === null || parameter.normalMin < parameter.normalMax, "Normal minimum must be below maximum.");
+    parameter.updatedAt = now; parameter.updatedBy = actor.name; parameter.reviewStatus = "published";
+    state.parameterRevisions ??= [];
+    const revision = state.parameterRevisions.filter(item => item.parameterId === parameter.id).length + 1;
+    state.parameterRevisions.push({ id: `PRV-${crypto.randomUUID()}`, parameterId: parameter.id, revision, before, after: structuredClone(parameter), at: now, actor: actor.name, comment: value(data, "comment", true) });
+  } else if (command.action === "parameter.reading") {
+    requireRole(actor, ["engineer", "reviewer"]);
+    const parameter = state.parameters?.find(item => item.id === id);
+    if (!parameter) throw new DomainError("Parameter unavailable.", 404);
+    parameter.currentValue = finiteNumber(data, "currentValue"); parameter.dataMode = "manual_field";
+    parameter.updatedAt = now; parameter.updatedBy = actor.name;
+    event.comment = value(data, "comment", true);
+  } else if (command.action.startsWith("document.")) {
     const doc = state.documents.find(d => d.id === id);
     if (!doc || !canRead(doc, actor)) throw new DomainError("Document unavailable.", 404);
     const action = command.action.slice(9);

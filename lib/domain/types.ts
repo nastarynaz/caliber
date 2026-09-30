@@ -1,6 +1,18 @@
 export type Role = "engineer" | "controller" | "reviewer" | "reader";
 export type Actor = { id: string; name: string; role: Role; mode: "demo" | "connected" };
 export type Equipment = { id: string; tag: string; name: string; location: string; area: string; set: string };
+export type ParameterDirection = "HIGH" | "LOW" | "N/A";
+export type ParameterModelDriver = "MANUAL" | "LOAD" | "CALCULATED" | "CONNECTOR";
+export type ParameterStatus = "normal" | "advisory" | "critical" | "blocked";
+export type EquipmentParameter = {
+  id: string; equipmentId: string; group: string; instrumentTag: string; name: string; unit: string;
+  baseValue: number | null; currentValue: number | null; normalMin: number | null; normalMax: number | null;
+  advisory: number | null; critical: number | null; direction: ParameterDirection; voting: string; sil: string;
+  sourceClass: string; engineeringNote: string; modelDriver: ParameterModelDriver; priority21: number;
+  sourceDocument: string; sourceLocator: string; reviewStatus: "candidate" | "published";
+  dataMode: "imported_workbook" | "manual_field" | "connector"; validFrom: string | null; updatedAt: string | null; updatedBy: string;
+};
+export type ParameterRevision = { id: string; parameterId: string; revision: number; before: EquipmentParameter; after: EquipmentParameter; at: string; actor: string; comment: string };
 export type Event = { id: string; at: string; actor: string; action: string; comment: string };
 export type DocumentVersion = {
   id: string; documentId: string; title: string; number: string; type: string; revision: string | null;
@@ -24,7 +36,7 @@ export type Case = {
 };
 export type History = { id: string; equipmentId: string; wo: string; date: string; type: string; symptom: string; cause: string; action: string; downtime: number | null; cost: number | null; source: string };
 export type Issue = { id: string; title: string; sourceIds: string[]; status: "open" | "resolved"; comment: string; at: string };
-export type HubState = { revision: number; equipment: Equipment[]; documents: DocumentVersion[]; cases: Case[]; history: History[]; issues: Issue[]; audit: Event[] };
+export type HubState = { revision: number; equipment: Equipment[]; documents: DocumentVersion[]; cases: Case[]; history: History[]; issues: Issue[]; audit: Event[]; parameters?: EquipmentParameter[]; parameterRevisions?: ParameterRevision[] };
 export type Command = { action: string; id?: string; data?: Record<string, unknown>; expectedRevision: number };
 export type Citation = { id: string; label: string; locator: string; href: string };
 export type Answer = { label: string; text: string; evidence: string; limitations: string; citations: Citation[]; view?: string; conflict: boolean; provider?: string };

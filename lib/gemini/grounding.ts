@@ -4,6 +4,7 @@ import type { Answer, HubState } from "@/lib/domain/types";
 import type { AuthorizedPassage } from "@/lib/domain/providers";
 import { validateCitations } from "@/lib/domain/providers";
 import { eligible } from "@/lib/domain/workflow";
+import { parameterStatus } from "@/lib/domain/control-room";
 
 const outputSchema = {
   type: "object",
@@ -33,6 +34,13 @@ function clipped(text: string, limit = 6000) { return text.length > limit ? text
 
 export function authorizedPassages(state: HubState, question: string, equipmentId: string, broad: boolean): AuthorizedPassage[] {
   const query = terms(question); const candidates: AuthorizedPassage[] = [];
+  for (const item of state.parameters ?? []) {
+    if (!broad && item.equipmentId !== equipmentId) continue;
+    const equipment = state.equipment.find(asset => asset.id === item.equipmentId);
+    const status = parameterStatus(item, item.currentValue);
+    candidates.push({ id: `parameter:${item.id}`, versionId: item.id, equipmentIds: [item.equipmentId], extractionRunId: "workbook-import-reviewed", page: 1,
+      category: "governed_parameter", text: clipped(`Equipment: ${equipment?.tag ?? item.equipmentId}\nInstrument: ${item.instrumentTag}\nParameter: ${item.name}\nReview status: ${item.reviewStatus}\nCurrent imported scenario value: ${item.currentValue ?? "not available"} ${item.unit}\nBase value: ${item.baseValue ?? "not available"} ${item.unit}\nNormal envelope: ${item.normalMin ?? "not available"} to ${item.normalMax ?? "not available"} ${item.unit}\nAdvisory: ${item.advisory ?? "not available"}\nCritical: ${item.critical ?? "not available"}\nCalculated status: ${status}\nSIL: ${item.sil}\nVoting: ${item.voting}\nSource class: ${item.sourceClass}\nEngineering note: ${item.engineeringNote}\nData mode: ${item.dataMode}. This is imported workbook/scenario data, not live telemetry. Candidate values are not approved plant setpoints.`), citation: { id: item.id, label: `${equipment?.tag ?? item.equipmentId} · ${item.instrumentTag}`, locator: `${item.sourceDocument} · ${item.sourceLocator} · ${item.sourceClass} · ${item.reviewStatus}`, href: `/equipment/${item.equipmentId}` } });
+  }
   for (const doc of state.documents) {
     if (!eligible(doc) || !doc.text.trim() || (!broad && !doc.equipmentIds.includes(equipmentId))) continue;
     candidates.push({ id: `document:${doc.id}:page:1`, versionId: doc.id, equipmentIds: doc.equipmentIds, extractionRunId: `text:${doc.id}`, page: 1,

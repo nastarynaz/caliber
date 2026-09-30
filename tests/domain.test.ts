@@ -6,8 +6,11 @@ import { answerQuestion } from "../lib/domain/retrieval";
 import { safeReturnPath } from "../lib/domain/navigation";
 import { validateCitations } from "../lib/domain/providers";
 import { equipmentCondition } from "../lib/domain/equipment-status";
+import { parameterStatus, scenarioValue } from "../lib/domain/control-room";
+import { validatedEquipmentPath } from "../lib/domain/locator";
 import type { Actor, HubState, Role } from "../lib/domain/types";
 const seed = (): HubState => JSON.parse(readFileSync(new URL("../data/catalog.json", import.meta.url), "utf8"));
+const controlRoomSeed = (): HubState => ({ ...seed(), parameters: JSON.parse(readFileSync(new URL("../data/control-room-parameters.json", import.meta.url), "utf8")), parameterRevisions: [] });
 const actor = (role: Role): Actor => ({ id: role, name: `Test ${role}`, role, mode: "demo" });
 const command = (s: HubState, role: Role, action: string, id?: string, data = {}) => applyCommand(s, actor(role), { action, id, data, expectedRevision: s.revision });
 function approved(s: HubState, id = s.documents[0].id) {
@@ -111,7 +114,28 @@ test("no fake trends, diagnoses, or matching cases", () => {
 });
 test("QR return paths are internal and reject unsafe redirects", () => {
   assert.equal(safeReturnPath("/equipment/EQP-000002"), "/equipment/EQP-000002");
-  for (const path of ["https://evil.test", "//evil.test", "/\\evil.test", "/\nevil.test", "/login"]) assert.equal(safeReturnPath(path), "/equipment/EQP-000001");
+  assert.equal(safeReturnPath("/scan"), "/scan");
+  for (const path of ["https://evil.test", "//evil.test", "/\\evil.test", "/\nevil.test", "/login"]) assert.equal(safeReturnPath(path), "/equipment");
+});
+test("control room imports all 38 parameters and derives scenario status deterministically", () => {
+  const s = controlRoomSeed(); assert.equal(s.parameters?.length, 38);
+  const load = s.parameters!.find(item => item.instrumentTag === "FT-1201")!;
+  assert.equal(scenarioValue(load, "ideal", 10), load.baseValue);
+  assert.equal(scenarioValue(load, "non-ideal", 10), load.baseValue! * 10);
+  assert.equal(parameterStatus(load, load.baseValue), "normal");
+  assert.equal(parameterStatus(load, load.baseValue! * 10), "advisory");
+});
+test("parameter revisions require Controller authority and preserve before/after snapshots", () => {
+  let s = controlRoomSeed(); const id = s.parameters![0].id;
+  assert.throws(() => command(s, "engineer", "parameter.update", id, { normalMin: 1, comment: "Unauthorized" }), /permission/i);
+  s = command(s, "controller", "parameter.update", id, { normalMin: .8, normalMax: 4, comment: "Reviewed test revision" });
+  assert.equal(s.parameterRevisions?.length, 1); assert.notEqual(s.parameterRevisions![0].before.normalMin, s.parameterRevisions![0].after.normalMin);
+});
+test("equipment locator accepts only internal known permanent equipment IDs", () => {
+  const ids = new Set(seed().equipment.map(item => item.id));
+  assert.equal(validatedEquipmentPath("/equipment/EQP-000001", ids), "/equipment/EQP-000001");
+  assert.equal(validatedEquipmentPath("https://evil.test/equipment/EQP-000001", ids), null);
+  assert.equal(validatedEquipmentPath("/equipment/EQP-999999", ids), null);
 });
 test("provider citation validation rejects invented or unauthorized evidence", () => {
   assert.throws(() => validateCitations(["restricted-source"], []), /outside the authorized/);

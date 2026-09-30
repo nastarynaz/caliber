@@ -1,2 +1,2 @@
-import { Directory } from "@/components/knowledge-hub/directory";
-export default function Page() { return <Directory/>; }
+import { ControlRoom } from "@/components/knowledge-hub/control-room";
+export default function Page() { return <ControlRoom/>; }

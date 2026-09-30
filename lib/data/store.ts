@@ -6,6 +6,7 @@ import path from "node:path";
 import type { Actor, Command, HubState, Role } from "@/lib/domain/types";
 import { applyCommand, DomainError, visibleState } from "@/lib/domain/workflow";
 import { supabaseServer } from "@/lib/supabase/server";
+import parameterSeed from "@/data/control-room-parameters.json";
 
 export const mode = () => process.env.HUB_MODE === "connected" ? "connected" : process.env.HUB_MODE === "demo" || process.env.NODE_ENV !== "production" ? "demo" : "setup";
 // Deployed/serverless bundles are normally read-only. Keep the deterministic
@@ -20,8 +21,13 @@ const roles: Role[] = ["engineer", "controller", "reviewer", "reader"];
 type Session = { actor: Actor; state: HubState; expires: number };
 const demoCookieOptions = { httpOnly: true, sameSite: "lax" as const, secure: process.env.COOKIE_SECURE === "true", path: "/", maxAge: 8 * 3600 };
 function demoActor(role: Role): Actor {
-  const names = { engineer: "Alex · Demo engineer", controller: "Sam · Demo controller", reviewer: "Morgan · Demo reviewer", reader: "Taylor · Demo reader" };
+  const names = { engineer: "Alex · Field Operator", controller: "Sam · Control Room Admin", reviewer: "Morgan · Technical Reviewer", reader: "Taylor · Field Observer" };
   return { id: `demo-${role}`, name: names[role], role, mode: "demo" };
+}
+function withControlRoomSeed(state: HubState): HubState {
+  if (!state.parameters?.length) state.parameters = structuredClone(parameterSeed) as HubState["parameters"];
+  state.parameterRevisions ??= [];
+  return state;
 }
 const locks = new Map<string, Promise<unknown>>();
 async function exclusive<T>(key: string, work: () => Promise<T>): Promise<T> {
@@ -52,7 +58,7 @@ export async function startDemo(role: string) {
   const actor = demoActor(role as Role);
   await exclusive(id, async () => {
     const fresh = previous ? await readSession(id!) : null;
-    const state = fresh?.state ?? JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8"));
+    const state = withControlRoomSeed(fresh?.state ?? JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8")));
     await saveSession(id!, { actor, state, expires: Date.now() + 8 * 3600000 });
   });
   jar.set("kh_session", id, demoCookieOptions);
@@ -80,7 +86,7 @@ export async function session() {
     const role = jar.get("kh_demo_role")?.value;
     if (!/^[a-f0-9-]{36}$/.test(id) || !roles.includes(role as Role)) throw error;
     const actor = demoActor(role as Role);
-    const state = JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8")) as HubState;
+    const state = withControlRoomSeed(JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8")) as HubState);
     await saveSession(id, { actor, state, expires: Date.now() + 8 * 3600000 });
     return { id, actor };
   }
