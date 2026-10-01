@@ -4,6 +4,19 @@ import { parameterStatus } from "./control-room";
 export function answerQuestion(state: HubState, question: string, equipmentId: string, broad = false): Answer {
   const q = question.trim().toLowerCase();
   const base: Answer = { label: "Insufficient evidence", text: "The accessible sources do not establish an answer to this question.", evidence: "No supported claim was generated.", limitations: "Keyword retrieval only. Refine your question or supply an observation for review.", citations: [], conflict: false, provider: "Deterministic retrieval" };
+  const cleaned = q.replace(/[?!.,;]/g, "").trim();
+  if (/^(h(i|ey|ello|alo)|hai|pagi|siang|sore|malam|assalamu['\s]?alaikum|selamat (pagi|siang|sore|malam))(\s+(mas\s+)?candra)?$/i.test(cleaned) ||
+      /^(siapa\s+(kamu|anda|mas\s+candra|candra)|who\s+are\s+you|what\s+can\s+you\s+do|kamu\s+(siapa|bisa\s+apa)|bisa\s+bantu\s+apa|bantu\s+apa|ada\s+apa)$/i.test(cleaned) ||
+      /^(mas\s+)?candra(\s+(bisa\s+bantu\s+apa|siapa|tolong))?$/i.test(cleaned)) {
+    return {
+      ...base,
+      label: "Asisten AI Siaga",
+      provider: "Mas Candra · AI Assistant",
+      text: "Halo! Saya Mas Candra, asisten AI untuk Chandra Asri Manufacturing Knowledge Hub. Saya siap membantu Anda menelusuri spesifikasi peralatan, dokumen teknis (P&ID, Datasheet), riwayat maintenance, dan parameter operasional pabrik. Silakan tanyakan hal teknis seputar peralatan (contoh: 'Spesifikasi GA-1201A' atau 'Riwayat vibrasi pompa').",
+      evidence: "Tersedia 8 unit equipment (Set 01 GA-1201A s.d. Set 08 FA-8901), dokumen P&ID, Datasheet, interlock sequence, dan riwayat maintenance.",
+      limitations: "Rekomendasi bersifat asisten teknis; verifikasi selalu kondisi aktual dan SOP operasional sebelum mengambil tindakan di lapangan.",
+    };
+  }
   if (!state.equipment.some(e => e.id === equipmentId)) return { ...base, text: "Choose equipment to establish your question's scope." };
   const docs = state.documents.filter(d => d.applicability !== "superseded" && d.publication !== "withdrawn" && (broad || d.equipmentIds.includes(equipmentId)));
   if (/parameter|deviation|threshold|limit|priority|normal|critical|advisory|sil|voting/.test(q) && state.parameters?.length) {

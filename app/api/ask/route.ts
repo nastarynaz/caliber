@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     if (typeof data.question !== "string" || data.question.length > 2000 || !data.question.trim()) throw new DomainError("Enter a question under 2,000 characters.");
     const equipmentId = String(data.equipmentId); const broad = data.broad === true;
     const direct = answerQuestion(state, data.question, equipmentId, broad);
-    if (!geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(data.question)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
+    if (direct.label === "Asisten AI Siaga" || !geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(data.question)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
     reserveGeminiRequest(actor.id);
     let answer;
     try {
