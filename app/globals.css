@@ -449,19 +449,21 @@ select {border:1px solid var(--border);border-radius:6px;background:#fff;padding
 @media(max-width:800px){.mobile-more-backdrop{position:fixed;z-index:980;display:block;inset:0;background:rgba(20,38,66,.28)}.mobile-more-sheet{position:absolute;display:block;inset:auto 0 0;padding:17px 18px calc(78px + env(safe-area-inset-bottom));border-radius:14px 14px 0 0;background:#FBFCFD;box-shadow:0 -12px 38px rgba(22,42,70,.12)}.mobile-more-sheet>header{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid #DDE5EA}.mobile-more-sheet>header>div{display:grid;gap:3px}.mobile-more-sheet>header span{color:#7F8D99;font-size:7px;letter-spacing:.1em}.mobile-more-sheet>header strong{color:var(--brand-navy);font-size:13px}.mobile-more-sheet>header button{display:grid;place-items:center;width:38px;height:38px;color:#60748A}.mobile-more-sheet>header svg{width:17px}.mobile-more-sheet nav{display:grid}.mobile-more-sheet nav a{display:flex;align-items:center;gap:12px;min-height:58px;border-bottom:1px solid #E3E9ED;color:#40566F}.mobile-more-sheet nav a>svg{width:17px;color:var(--brand-blue)}.mobile-more-sheet nav a>span{display:grid;gap:3px}.mobile-more-sheet nav strong{font-size:10px}.mobile-more-sheet nav small{color:#85919B;font-size:8px}}
 
 /* Candra Floating Widget & AI Header Persona */
-.candra-floating-wrap{position:fixed;bottom:28px;right:28px;z-index:950;pointer-events:none}
-.candra-floating-btn{pointer-events:auto;display:flex;align-items:center;gap:11px;background:transparent;border:none;padding:0;cursor:pointer;transition:transform 180ms cubic-bezier(.16,1,.3,1)}
-.candra-floating-btn:hover{transform:translateY(-3px) scale(1.02)}
+.candra-floating-wrap{position:fixed;bottom:20px;right:24px;z-index:950;pointer-events:none}
+.candra-floating-btn{pointer-events:auto;display:flex;align-items:flex-end;gap:10px;background:transparent;border:none;padding:0;cursor:pointer;transition:transform 200ms cubic-bezier(.16,1,.3,1)}
+.candra-floating-btn:hover{transform:translateY(-4px) scale(1.03)}
 .candra-floating-btn:active{transform:translateY(0) scale(.98)}
-.candra-pill{display:flex;flex-direction:column;align-items:flex-end;background:#fff;padding:6px 14px 6px 16px;border-radius:9999px;border:1px solid #d4e0e8;box-shadow:0 4px 16px rgba(37,64,123,.12),0 1px 3px rgba(0,0,0,.05);transition:all 180ms ease}
-.candra-floating-btn:hover .candra-pill{border-color:#9ac2dc;box-shadow:0 6px 20px rgba(37,64,123,.18),0 2px 4px rgba(0,0,0,.06)}
-.candra-pill-title{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650;color:#1e3a6d;letter-spacing:-.01em}
+.candra-pill{display:flex;flex-direction:column;align-items:flex-end;margin-bottom:14px;background:#fff;padding:8px 16px;border-radius:9999px;border:1px solid #d4e0e8;box-shadow:0 4px 18px rgba(37,64,123,.14),0 1px 3px rgba(0,0,0,.05);transition:all 180ms ease}
+.candra-floating-btn:hover .candra-pill{border-color:#9ac2dc;box-shadow:0 8px 24px rgba(37,64,123,.2),0 2px 4px rgba(0,0,0,.06)}
+.candra-pill-title{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;color:#1e3a6d;letter-spacing:-.01em}
 .candra-pill-icon{color:#2577b8}
-.candra-pill-subtitle{font-size:8.5px;font-weight:500;color:#6d8296}
-.candra-avatar-frame{position:relative;width:52px;height:52px;border-radius:50%;padding:2px;background:linear-gradient(135deg,#25407b,#2577b8);box-shadow:0 6px 18px rgba(37,64,123,.22),0 2px 5px rgba(0,0,0,.08);flex-shrink:0}
-.candra-avatar-img{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#eef4f8;display:block}
-.candra-status-dot{position:absolute;bottom:1px;right:1px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.05)}
-.candra-status-dot-sm{position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:#22c55e;border:1.5px solid #fff}
+.candra-pill-subtitle{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:500;color:#6d8296;margin-top:1px}
+.candra-status-dot-inline{width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block}
+
+/* Pure transparent cutout character without box or border */
+.candra-figure-wrap{position:relative;width:96px;height:96px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center}
+.candra-figure-img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 8px 16px rgba(18,38,76,.24)) drop-shadow(0 2px 4px rgba(18,38,76,.12));transition:filter 200ms ease}
+.candra-floating-btn:hover .candra-figure-img{filter:drop-shadow(0 12px 24px rgba(18,38,76,.32)) drop-shadow(0 3px 6px rgba(18,38,76,.16))}
 
 .global-ai-candra-header{display:flex;align-items:center;gap:10px}
 .candra-header-avatar{position:relative;width:34px;height:34px;border-radius:50%;padding:1.5px;background:linear-gradient(135deg,#25407b,#2577b8);flex-shrink:0}
@@ -471,9 +473,9 @@ select {border:1px solid var(--border);border-radius:6px;background:#fff;padding
 .candra-welcome-badge{position:absolute;bottom:0;right:0;padding:2px 7px;border-radius:9999px;background:#166534;color:#fff;font-size:8px;font-weight:700;letter-spacing:.05em;border:1.5px solid #fff}
 
 @media(max-width:800px){
-  .candra-floating-wrap{bottom:calc(74px + env(safe-area-inset-bottom));right:16px}
+  .candra-floating-wrap{bottom:calc(68px + env(safe-area-inset-bottom));right:12px}
   .candra-pill{display:none}
-  .candra-avatar-frame{width:46px;height:46px}
+  .candra-figure-wrap{width:76px;height:76px}
 }
 @media(prefers-reduced-motion:reduce){
   .candra-floating-btn{transition:none}

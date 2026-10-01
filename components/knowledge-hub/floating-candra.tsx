@@ -30,19 +30,21 @@ export function FloatingCandra() {
             <Sparkles size={11} className="candra-pill-icon" />
             Tanya Mas Candra
           </span>
-          <span className="candra-pill-subtitle">AI Plant Assistant · Standby</span>
+          <span className="candra-pill-subtitle">
+            <span className="candra-status-dot-inline" />
+            AI Plant Assistant · Standby
+          </span>
         </div>
 
-        <div className="candra-avatar-frame">
+        <div className="candra-figure-wrap">
           <Image
             src="/Candra.png"
             alt="Mas Candra"
-            width={52}
-            height={52}
-            className="candra-avatar-img"
+            width={96}
+            height={96}
+            className="candra-figure-img"
             priority
           />
-          <span className="candra-status-dot" title="Online & Terhubung ke Dokumen Kilang" />
         </div>
       </button>
     </aside>
