@@ -267,14 +267,14 @@ create or replace function public.hub_match_document_chunks(
 )
 language sql stable security invoker set search_path='' as $$
   select c.id,c.version_id,c.page,c.page_end,c.content,c.metadata,
-    (1-(c.embedding <=> p_query_embedding))::double precision as similarity
+    (1-(c.embedding operator(extensions.<=>) p_query_embedding))::double precision as similarity
   from public.document_chunk c
   where c.embedding is not null and c.rag_eligible and c.active
     and hub_private.can_version(c.version_id)
     and (p_equipment_id is null or exists(
       select 1 from public.document_equipment de where de.version_id=c.version_id and de.equipment_id=p_equipment_id
     ))
-  order by c.embedding <=> p_query_embedding
+  order by c.embedding operator(extensions.<=>) p_query_embedding
   limit greatest(1,least(p_match_count,20));
 $$;
 revoke all on function public.hub_match_document_chunks(extensions.vector,integer,text) from public,anon;

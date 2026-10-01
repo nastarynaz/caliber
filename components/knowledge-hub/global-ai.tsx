@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { ArrowUp, ArrowUpRight, Bot, BookOpen, X } from "lucide-react";
 import type { Answer } from "@/lib/domain/types";
 import { useHub } from "./provider";
@@ -51,10 +52,10 @@ export function GlobalAI() {
   if (!open) return null;
   return <div className="global-ai-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
     <aside className="global-ai-panel" role="dialog" aria-modal="true" aria-label="Global knowledge assistant">
-      <header><div><span><Bot size={16}/> Knowledge assistant</span><small>{capabilities.gemini ? "Gemini grounded retrieval enabled" : "Deterministic source retrieval"}</small></div><button type="button" aria-label="Close AI assistant" onClick={() => setOpen(false)}><X size={18}/></button></header>
+      <header><div className="global-ai-candra-header"><div className="candra-header-avatar"><Image src="/Candra.png" alt="Mas Candra" width={34} height={34} className="candra-mini-img"/><span className="candra-status-dot-sm"/></div><div><span>Candra · Plant AI Assistant</span><small>{capabilities.gemini ? "Grounded retrieval · Chandra Asri corpus" : "Deterministic source retrieval · Chandra Asri corpus"}</small></div></div><button type="button" aria-label="Close AI assistant" onClick={() => setOpen(false)}><X size={18}/></button></header>
       <div className="global-ai-scope"><label>Evidence scope<select value={equipmentId} onChange={event => setEquipmentId(event.target.value)}><option value="all">All eight equipment sets</option>{state.equipment.map(item => <option key={item.id} value={item.id}>{item.tag} · {item.name}</option>)}</select></label><p>AI explains retrieved evidence. It does not set process state or replace approved procedures.</p></div>
       <div className="global-ai-thread" aria-live="polite">
-        {!messages.length && <div className="global-ai-empty"><BookOpen size={22}/><h2>Ask from the whole process.</h2><p>Search controlled documents, equipment knowledge, and reviewed cases. Every supported answer keeps its source.</p>{["Which equipment has the highest-priority deviation?", "Find approved verification steps for the selected equipment", "Which parameters have blocked or training-only evidence?"].map(question => <button type="button" key={question} onClick={() => ask(question)}>{question}<ArrowUpRight size={13}/></button>)}</div>}
+        {!messages.length && <div className="global-ai-empty"><div className="candra-welcome-avatar"><Image src="/Candra.png" alt="Mas Candra" width={68} height={68} className="candra-welcome-img"/><span className="candra-welcome-badge">Online</span></div><h2>Tanya Mas Candra</h2><p>Telusuri dokumen kontrol, manual spesifikasi, P&ID, dan riwayat maintenance kilang. Setiap jawaban merujuk pada bukti otentik.</p>{["Which equipment has the highest-priority deviation?", "Find approved verification steps for the selected equipment", "Which parameters have blocked or training-only evidence?"].map(question => <button type="button" key={question} onClick={() => ask(question)}>{question}<ArrowUpRight size={13}/></button>)}</div>}
         {messages.map((message, index) => <article className="global-ai-message" key={`${message.question}-${index}`}><p className="global-ai-question">{message.question}</p><div className="global-ai-answer"><span>{message.answer.provider ?? "Knowledge Hub retrieval"}</span><strong>{message.answer.label}</strong><p>{message.answer.text}</p>{message.answer.evidence && <blockquote>{message.answer.evidence}</blockquote>}<div>{message.answer.citations.map((citation, citationIndex) => <a key={`${citation.id}-${citationIndex}`} href={citation.href} target="_blank" rel="noreferrer"><b>{citationIndex + 1}</b><span>{citation.label}<small>{citation.locator}</small></span></a>)}</div><small>{message.answer.limitations}</small></div></article>)}
         {asking && <p className="global-ai-loading">Retrieving authorized evidence…</p>}
       </div>

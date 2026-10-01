@@ -102,13 +102,15 @@ create or replace function public.hub_create_upload(
   p_equipment_id text, p_expected_revision bigint
 ) returns bigint
 language plpgsql security definer set search_path='' as $$
-declare new_revision bigint; prior public.document_version%rowtype; actor text;
+declare new_revision bigint; prior public.document_version%rowtype; actor text; expected_path text;
 begin
   if hub_private.current_role() <> 'controller' then raise exception 'Controller role is required for upload.'; end if;
   if not hub_private.can_equipment(p_equipment_id) then raise exception 'Equipment access unavailable.'; end if;
   if p_mime not in ('application/pdf','image/png') or length(p_checksum)<>64 then raise exception 'Invalid upload metadata.'; end if;
   if p_version_id !~ '^VER-[a-f0-9-]{36}$' or (not p_existing_document and p_document_id !~ '^DOC-[a-f0-9-]{36}$') then raise exception 'Invalid immutable identifier.'; end if;
-  if p_storage_path <> 'sources/'||p_document_id||'/'||p_version_id||case when p_mime='application/pdf' then '.pdf' else '.png' end then raise exception 'Invalid private Storage path.'; end if;
+  if p_mime = 'application/pdf' then expected_path := 'sources/'||p_document_id||'/'||p_version_id||'.pdf';
+  else expected_path := 'sources/'||p_document_id||'/'||p_version_id||'.png'; end if;
+  if p_storage_path <> expected_path then raise exception 'Invalid private Storage path.'; end if;
   new_revision := hub_private.next_revision(p_expected_revision); actor := hub_private.actor_name();
   if p_existing_document then
     if not exists(select 1 from public.document_acl where user_id=auth.uid() and document_id=p_document_id) then raise exception 'Document access unavailable.'; end if;
