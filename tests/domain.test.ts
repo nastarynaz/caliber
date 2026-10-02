@@ -8,6 +8,7 @@ import { validateCitations } from "../lib/domain/providers";
 import { equipmentCondition } from "../lib/domain/equipment-status";
 import { parameterStatus, scenarioValue } from "../lib/domain/control-room";
 import { validatedEquipmentPath } from "../lib/domain/locator";
+import { assistantLanguage, sanitizeAssistantHistory, sanitizeAssistantQuestion, validCandraScope } from "../lib/domain/assistant";
 import type { Actor, HubState, Role } from "../lib/domain/types";
 const seed = (): HubState => JSON.parse(readFileSync(new URL("../data/catalog.json", import.meta.url), "utf8"));
 const controlRoomSeed = (): HubState => ({ ...seed(), parameters: JSON.parse(readFileSync(new URL("../data/control-room-parameters.json", import.meta.url), "utf8")), parameterRevisions: [] });
@@ -112,6 +113,12 @@ test("no fake trends, diagnoses, or matching cases", () => {
   assert.match(answerQuestion(s, "vibration", "EQP-000002").text, /No matching history/);
   assert.equal(answerQuestion(s, "quantum bananas", "EQP-000001").label, "Insufficient evidence");
 });
+test("assistant reports the governed equipment-set count in Indonesian", () => {
+  const answer = answerQuestion(seed(), "Ada brp set peralatan di sini?", "EQP-000001", true);
+  assert.equal(answer.label, "Inventaris peralatan");
+  assert.match(answer.text, /8 set peralatan/);
+  assert.equal(answer.evidence.split("\n").length, 8);
+});
 test("QR return paths are internal and reject unsafe redirects", () => {
   assert.equal(safeReturnPath("/equipment/EQP-000002"), "/equipment/EQP-000002");
   assert.equal(safeReturnPath("/scan"), "/scan");
@@ -159,4 +166,29 @@ test("equipment map status is derived from governed Hub records", () => {
   assert.equal(equipmentCondition(critical.equipment[2], critical).condition, "critical");
   const attention = seed(); attention.documents[0].processing = "failed";
   assert.equal(equipmentCondition(attention.equipment[0], attention).condition, "attention");
+});
+test("assistant input removes control characters and rejects an empty sanitized question", () => {
+  assert.equal(sanitizeAssistantQuestion("  pump\u0000 flow?  "), "pump flow?");
+  assert.throws(() => sanitizeAssistantQuestion("\u0000\u0008"), /Enter a question/);
+  assert.throws(() => sanitizeAssistantQuestion("x".repeat(2_001)), /2,000/);
+});
+test("assistant history is bounded, sanitized, and excludes incomplete turns", () => {
+  const history = sanitizeAssistantHistory([
+    { question: "discarded", answer: "old" },
+    { question: "rated flow?", answer: "See datasheet." },
+    { question: "\u0000", answer: "invalid" },
+    { question: "head?", answer: "  80 m  " },
+  ]);
+  assert.deepEqual(history, [{ question: "rated flow?", answer: "See datasheet." }, { question: "head?", answer: "80 m" }]);
+});
+test("Candra scope accepts only all or an accessible equipment ID", () => {
+  const ids = seed().equipment.map(item => item.id);
+  assert.equal(validCandraScope("all", ids), "all");
+  assert.equal(validCandraScope("EQP-000001", ids), "EQP-000001");
+  assert.equal(validCandraScope("EQP-999999", ids), "all");
+});
+test("assistant recognizes Indonesian questions without changing English defaults", () => {
+  assert.equal(assistantLanguage("Berapa tekanan normal pompa ini?"), "id");
+  assert.equal(assistantLanguage("Tampilkan riwayat vibrasi sebelumnya"), "id");
+  assert.equal(assistantLanguage("Show the pump vibration history"), "en");
 });

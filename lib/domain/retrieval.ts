@@ -1,6 +1,7 @@
 import type { Answer, HubState } from "./types";
 import { eligible } from "./workflow";
 import { parameterStatus } from "./control-room";
+import { assistantLanguage } from "./assistant";
 export function answerQuestion(state: HubState, question: string, equipmentId: string, broad = false): Answer {
   const q = question.trim().toLowerCase();
   const base: Answer = { label: "Insufficient evidence", text: "The accessible sources do not establish an answer to this question.", evidence: "No supported claim was generated.", limitations: "Keyword retrieval only. Refine your question or supply an observation for review.", citations: [], conflict: false, provider: "Deterministic retrieval" };
@@ -15,6 +16,17 @@ export function answerQuestion(state: HubState, question: string, equipmentId: s
       text: "Halo! Saya Mas Candra, asisten AI untuk Chandra Asri Manufacturing Knowledge Hub. Saya siap membantu Anda menelusuri spesifikasi peralatan, dokumen teknis (P&ID, Datasheet), riwayat maintenance, dan parameter operasional pabrik. Silakan tanyakan hal teknis seputar peralatan (contoh: 'Spesifikasi GA-1201A' atau 'Riwayat vibrasi pompa').",
       evidence: "Tersedia 8 unit equipment (Set 01 GA-1201A s.d. Set 08 FA-8901), dokumen P&ID, Datasheet, interlock sequence, dan riwayat maintenance.",
       limitations: "Rekomendasi bersifat asisten teknis; verifikasi selalu kondisi aktual dan SOP operasional sebelum mengambil tindakan di lapangan.",
+    };
+  }
+  if (/(berapa|brp|how many).*(set|equipment|peralatan)/i.test(cleaned) || /(set|equipment|peralatan).*(berapa|brp|how many)/i.test(cleaned)) {
+    const indonesian = assistantLanguage(question) === "id";
+    return {
+      ...base,
+      label: indonesian ? "Inventaris peralatan" : "Equipment inventory",
+      provider: indonesian ? "Inventaris Knowledge Hub" : "Knowledge Hub inventory",
+      text: indonesian ? `Ada ${state.equipment.length} set peralatan di Knowledge Hub ini.` : `There are ${state.equipment.length} equipment sets in this Knowledge Hub.`,
+      evidence: state.equipment.map(item => `Set ${item.set} · ${item.tag} · ${item.name}`).join("\n"),
+      limitations: indonesian ? "Jumlah ini berasal dari inventaris workspace saat ini, bukan inventaris aset pabrik secara keseluruhan." : "This count reflects the current workspace inventory, not the complete plant asset inventory.",
     };
   }
   if (!state.equipment.some(e => e.id === equipmentId)) return { ...base, text: "Choose equipment to establish your question's scope." };

@@ -14,7 +14,7 @@ test("QR return, actual sources, grounded responses, responsive layout, keyboard
   await expect(page.getByText("Technical Reviewer", { exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "Detailed view of an industrial refinery with pipelines and steel structures." })).toBeVisible();
   await expect(page.getByText(/not a Chandra Asri facility or live plant evidence/i)).toBeVisible();
-  await page.getByRole("button", { name: "Enter demo workspace" }).click();
+  await page.getByRole("button", { name: "Enter as selected persona" }).click();
   await expect(page).toHaveURL(/equipment\/EQP-000002$/);
   const tour = page.getByRole("dialog", { name: "Move without losing context" });
   await expect(tour).toBeVisible();
@@ -176,7 +176,7 @@ test("document API enforces lifecycle, ACLs, exact files, and session isolation"
 
 test("observation UI leads to reviewed unknown-cause closure and searchable failure memory", async ({ page }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Enter demo workspace" }).click();
+  await page.getByRole("button", { name: "Enter as selected persona" }).click();
   await expect(page).toHaveURL(/\/equipment$/);
   await page.goto("/equipment/EQP-000001");
   await page.getByRole("dialog").getByRole("button", { name: "Skip tour" }).click();

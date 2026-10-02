@@ -13,7 +13,7 @@ pnpm dev
 
 Open http://localhost:3000. Development defaults to isolated demo mode. Choose Engineer, Document controller, Technical reviewer, or Read-only engineer. Switching personas retains the workspace; signing out and entering again starts a fresh workspace. Sessions expire after eight hours.
 
-For explicit configuration, create `.env.local` using `.env.example`. Set `NEXT_PUBLIC_SITE_URL` to the exact browser origin, including port: localhost and 127.0.0.1 are different origins. Mutations enforce this origin. Set `COOKIE_SECURE=true` only for HTTPS.
+For explicit configuration, create `.env.local` using `.env.example`. Set `NEXT_PUBLIC_SITE_URL` to the exact browser origin, including port: localhost and 127.0.0.1 are different origins. Mutations enforce this origin. Session and Candra preference cookies automatically use `secure` in production; `COOKIE_SECURE=true` is available for HTTPS environments that do not expose a production environment marker.
 
 Production requires explicit `HUB_MODE=demo` or `HUB_MODE=connected`; backend errors never fall back to demo. Local development persists demo sessions in private `.local-data/` files. Production demo mode writes to the platform temporary directory so a serverless preview can run, but that storage is ephemeral and a session can reset between instances or deployments. Use `HUB_MODE=connected` with Supabase for a stable multi-instance deployment. Session/file cleanup is not scheduled. Do not upload confidential plant data.
 
@@ -113,8 +113,10 @@ Set `GEMINI_ENABLED=true`, add the server-only `GEMINI_API_KEY`, and choose a mo
 
 - builds evidence only from the caller's already RLS-filtered snapshot;
 - includes approved, published, indexed, current documents plus verified case closures and scoped historical records;
-- uses a stateless Gemini Interactions request with structured JSON output;
+- uses a stateless Gemini Generate Content request with structured JSON output;
 - rejects citations that are not in the authorized evidence set;
+- accepts at most three sanitized in-memory conversation turns for follow-up context; conversations are not persisted;
+- remembers the last authorized equipment scope in an HTTP-only preference cookie;
 - exposes the provider, evidence, citations, conflicts, and limitations in the response;
 - never sends live measurements because no historian connection exists.
 

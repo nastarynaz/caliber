@@ -1,12 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
-import { Sparkles, MessageSquareText } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export function FloatingCandra() {
-  const [hovered, setHovered] = useState(false);
-
   const handleOpen = () => {
     window.dispatchEvent(new CustomEvent("knowledge-hub:open-ai"));
   };
@@ -20,8 +17,6 @@ export function FloatingCandra() {
         type="button"
         className="candra-floating-btn"
         onClick={handleOpen}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         aria-label="Buka obrolan dengan Mas Candra"
         title="Tanya Mas Candra · Asisten AI Pabrik"
       >

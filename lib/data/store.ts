@@ -6,6 +6,7 @@ import path from "node:path";
 import type { Actor, Command, HubState, Role } from "@/lib/domain/types";
 import { applyCommand, DomainError, visibleState } from "@/lib/domain/workflow";
 import { supabaseServer } from "@/lib/supabase/server";
+import { sessionCookieOptions } from "@/lib/data/cookie-options";
 import parameterSeed from "@/data/control-room-parameters.json";
 
 export const mode = () => process.env.HUB_MODE === "connected" ? "connected" : process.env.HUB_MODE === "demo" || process.env.NODE_ENV !== "production" ? "demo" : "setup";
@@ -19,7 +20,6 @@ const root = process.env.HUB_DEMO_DATA_DIR
     : path.join(process.cwd(), ".local-data");
 const roles: Role[] = ["engineer", "controller", "reviewer", "reader"];
 type Session = { actor: Actor; state: HubState; expires: number };
-const demoCookieOptions = { httpOnly: true, sameSite: "lax" as const, secure: process.env.COOKIE_SECURE === "true", path: "/", maxAge: 8 * 3600 };
 function demoActor(role: Role): Actor {
   const names = { engineer: "Alex · Field Operator", controller: "Sam · Control Room Admin", reviewer: "Morgan · Technical Reviewer", reader: "Taylor · Field Observer" };
   return { id: `demo-${role}`, name: names[role], role, mode: "demo" };
@@ -61,12 +61,12 @@ export async function startDemo(role: string) {
     const state = withControlRoomSeed(fresh?.state ?? JSON.parse(await readFile(path.join(process.cwd(), "data/catalog.json"), "utf8")));
     await saveSession(id!, { actor, state, expires: Date.now() + 8 * 3600000 });
   });
-  jar.set("kh_session", id, demoCookieOptions);
+  jar.set("kh_session", id, sessionCookieOptions());
   // Vercel may serve the redirect after login from another serverless instance,
   // whose temporary directory cannot see the session file written above. Keep
   // only the selected demo persona in a second HTTP-only cookie so that an
   // ephemeral demo session can be recreated on that instance.
-  jar.set("kh_demo_role", role, demoCookieOptions);
+  jar.set("kh_demo_role", role, sessionCookieOptions());
   return actor;
 }
 export async function session() {

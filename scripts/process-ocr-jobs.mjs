@@ -132,7 +132,7 @@ async function processJob(db, ai, job) {
     if (!ready.uri) throw new Error("Gemini did not return a file URI.");
     const expectedPages = 1;
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       contents: [{ role: "user", parts: [
         { fileData: { fileUri: ready.uri, mimeType: version.mime } },
         { text: promptFor(version, expectedPages) },
@@ -144,7 +144,7 @@ async function processJob(db, ai, job) {
     const extractionId = randomUUID();
     const run = await db.from("extraction_run").upsert({
       id: extractionId, version_id: version.id, job_id: job.id, method: "gemini_document_understanding",
-      provider: "google_gemini", model: response.modelVersion || process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      provider: "google_gemini", model: response.modelVersion || process.env.GEMINI_MODEL || "gemini-3.8-flash",
       prompt_version: promptVersion, schema_version: schemaVersion, input_checksum: version.checksum,
       status: "succeeded", started_at: job.started_at || new Date().toISOString(), completed_at: new Date().toISOString(),
       raw_output: payload, usage_metadata: response.usageMetadata || {},

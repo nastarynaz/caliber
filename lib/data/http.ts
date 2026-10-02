@@ -11,8 +11,9 @@ export function checkOrigin(request: Request) {
   if (!origin || origin !== expected) throw new DomainError("Cross-origin request rejected.", 403);
 }
 export function apiError(error: unknown) {
-  if (error instanceof DomainError) return Response.json({ error: error.message }, { status: error.status });
-  console.error(error); return Response.json({ error: "The request could not be completed. Your previous data has been retained." }, { status: 500 });
+  const headers = { "Cache-Control": "private, no-store" };
+  if (error instanceof DomainError) return Response.json({ error: error.message }, { status: error.status, headers });
+  console.error(error); return Response.json({ error: "The request could not be completed. Your previous data has been retained." }, { status: 500, headers });
 }
 export async function readJson(request: Request) {
   const text = new TextDecoder().decode(await readBounded(request, 100000));

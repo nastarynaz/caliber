@@ -1,6 +1,6 @@
 # Image source manifest
 
-Accessed: 2026-09-30
+Accessed: 2026-10-02
 
 The photographs below provide organizational and role context only. They are not operational evidence, do not depict live plant conditions, and must not be used to identify any of the eight pilot equipment records. All shipped files are local WebP assets; the application does not hotlink a publisher's image.
 
@@ -27,7 +27,7 @@ The photographs below provide organizational and role context only. They are not
 | Field | Record |
 | --- | --- |
 | Local file | `public/images/personas/field-operations.webp` |
-| Placement | Field Operator and Field Observer persona options |
+| Placement | Field Operator persona option |
 | Subject | Safety-conscious factory worker inspecting equipment |
 | Original page title | Factory Worker in a Safety Helmet |
 | Publisher | Pexels; photograph by ThisIsEngineering |
@@ -37,6 +37,22 @@ The photographs below provide organizational and role context only. They are not
 | Modified | Resized by the publisher's delivery endpoint, converted to WebP, and cropped responsively; PPE retained |
 | Alt text | Industrial worker wearing a safety helmet inspecting factory equipment. |
 | Restriction | Contextual role imagery only. The person is not a Chandra Asri employee or the signed-in user. |
+
+### `persona-field-observer`
+
+| Field | Record |
+| --- | --- |
+| Local file | `public/images/personas/field-observer.jpg` |
+| Placement | Field Observer persona option |
+| Subject | Engineer in protective equipment reviewing information on a tablet inside an industrial factory |
+| Original page title | Engineer in Industrial Factory Using Tablet |
+| Publisher | Pexels; photograph by Sergey Sergeev |
+| Source page | https://www.pexels.com/photo/engineer-in-industrial-factory-using-tablet-32845694/ |
+| Direct asset | https://images.pexels.com/photos/32845694/pexels-photo-32845694.jpeg |
+| Usage basis | Pexels License: free website/app use and modification; no endorsement implied. https://www.pexels.com/license/ |
+| Modified | Resized to 1400 px maximum dimension and JPEG-compressed for local delivery; responsive crop in CSS |
+| Alt text | Industrial engineer in protective equipment reviewing information on a tablet inside a factory. |
+| Restriction | Contextual read-only role imagery. The person is not a Chandra Asri employee or the signed-in user. |
 
 ### `persona-control-room-admin`
 

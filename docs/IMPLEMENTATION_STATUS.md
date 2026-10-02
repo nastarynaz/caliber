@@ -1,4 +1,4 @@
-# Implementation and verification — 27 September 2026
+# Implementation and verification — 1 October 2026
 
 ## Current scope
 
@@ -6,7 +6,7 @@ Working Set 01 local demo plus connected adapter: eight equipment identities, 12
 
 The first-login experience includes a role-aware spotlight walkthrough with persistent completion, replay control, Back/Next/Skip, keyboard navigation, focus trapping, inert background content, reduced-motion support, and responsive coachmark placement.
 
-Supabase connected mode now includes Auth, RLS-scoped snapshots, private Storage, and transactional role-checked RPC mutations. Gemini grounded synthesis is implemented behind an explicit environment switch. No remote migration, live Gemini call, OCR job, or deployment was performed because no project credentials were supplied.
+Supabase connected mode now includes Auth, RLS-scoped snapshots, private Storage, and transactional role-checked RPC mutations. Gemini grounded synthesis is implemented behind an explicit environment switch, with three-turn ephemeral context, sanitized inputs, a validated HTTP-only equipment-scope preference, and a process-local rate limit. No remote migration, live Gemini call, OCR job, or deployment was performed because no project credentials were supplied.
 
 ## Verification
 
@@ -15,7 +15,7 @@ Supabase connected mode now includes Auth, RLS-scoped snapshots, private Storage
 | `pnpm lint` | Passed |
 | `pnpm exec next typegen` | Passed |
 | `pnpm exec tsc --noEmit` | Passed |
-| `pnpm test` | 14 domain/security tests passed |
+| `pnpm test` | 21 domain/security tests passed |
 | `pnpm test:e2e` | Four browser/API integration tests passed using isolated headless Brave |
 | `pnpm build` | Passed (Turbopack) |
 | Supabase RLS/migration | Not run: no configured authorized database |
@@ -65,6 +65,7 @@ Local pass means tested in demo mode, not certified for production.
 | Long mobile filename overflow | `overflow-wrap: anywhere` on evidence text | Preserve legible provenance |
 | Random sidebar skeleton width | Deterministic width | Stable server/client rendering |
 | Repeated interactions could animate decoratively | Immediate tabs/source selection/keyboard resizing; reduced motion | High-frequency workflow remains responsive |
+| Global AI forgot scope and follow-up context | Validated HTTP-only scope preference and three bounded in-memory turns | Preserve operator context without persisting conversation content |
 
 Existing components retained. No fabricated KPI/telemetry or decorative AI hero added.
 
