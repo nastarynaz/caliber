@@ -18,7 +18,11 @@ export function answerQuestion(state: HubState, question: string, equipmentId: s
       limitations: "Rekomendasi bersifat asisten teknis; verifikasi selalu kondisi aktual dan SOP operasional sebelum mengambil tindakan di lapangan.",
     };
   }
-  if (/(berapa|brp|how many).*(set|equipment|peralatan)/i.test(cleaned) || /(set|equipment|peralatan).*(berapa|brp|how many)/i.test(cleaned)) {
+  const asksForEquipmentCount = /\bhow many\b.*\b(sets?|equipment)\b/i.test(cleaned) ||
+    /\b(sets?|equipment)\b.*\bhow many\b/i.test(cleaned) ||
+    /\b(ada|jumlah|total|berapa|berpa\w*|brp)\b.*\b(sets?|equipment|peralatan)\b/i.test(cleaned) ||
+    /\b(sets?|equipment|peralatan)\b.*\b(jumlah|total|berapa|berpa\w*|brp)\b/i.test(cleaned);
+  if (asksForEquipmentCount) {
     const indonesian = assistantLanguage(question) === "id";
     return {
       ...base,

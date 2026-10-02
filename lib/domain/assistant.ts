@@ -4,7 +4,7 @@ export type AssistantHistoryItem = { question: string; answer: string };
 export type AssistantLanguage = "id" | "en";
 
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
-const INDONESIAN_WORDS = /\b(apa|apakah|berapa|brp|bagaimana|gimana|kenapa|mengapa|tolong|mohon|cari|carikan|tampilkan|jelaskan|adakah|yang|untuk|dengan|dari|bisa|punya|bahasa|riwayat|peralatan|pompa|tekanan|suhu|aliran|vibrasi|spesifikasi|dokumen|tertinggi|terkait|sebelumnya)\b/i;
+const INDONESIAN_WORDS = /\b(ada|apa|apakah|berapa|berpa\w*|brp|jumlah|bagaimana|gimana|kenapa|mengapa|tolong|mohon|cari|carikan|tampilkan|jelaskan|adakah|yang|untuk|dengan|dari|bisa|punya|bahasa|riwayat|peralatan|pompa|tekanan|suhu|aliran|vibrasi|spesifikasi|dokumen|tertinggi|terkait|sebelumnya)\b/i;
 
 function cleanText(value: unknown, maximum: number) {
   return typeof value === "string" ? value.replace(CONTROL_CHARACTERS, "").trim().slice(0, maximum) : "";

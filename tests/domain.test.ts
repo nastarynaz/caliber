@@ -118,6 +118,9 @@ test("assistant reports the governed equipment-set count in Indonesian", () => {
   assert.equal(answer.label, "Inventaris peralatan");
   assert.match(answer.text, /8 set peralatan/);
   assert.equal(answer.evidence.split("\n").length, 8);
+  const typo = answerQuestion(seed(), "ada berpaa sets", "EQP-000001", true);
+  assert.equal(typo.label, "Inventaris peralatan");
+  assert.match(typo.text, /8 set peralatan/);
 });
 test("QR return paths are internal and reject unsafe redirects", () => {
   assert.equal(safeReturnPath("/equipment/EQP-000002"), "/equipment/EQP-000002");
@@ -190,5 +193,6 @@ test("Candra scope accepts only all or an accessible equipment ID", () => {
 test("assistant recognizes Indonesian questions without changing English defaults", () => {
   assert.equal(assistantLanguage("Berapa tekanan normal pompa ini?"), "id");
   assert.equal(assistantLanguage("Tampilkan riwayat vibrasi sebelumnya"), "id");
+  assert.equal(assistantLanguage("ada berpaa sets"), "id");
   assert.equal(assistantLanguage("Show the pump vibration history"), "en");
 });
