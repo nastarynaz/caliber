@@ -36,7 +36,9 @@ yarn-error.log*
 .env*
 !.env.example
 /.local-data/
-/data/files/
+/data/files/*
+!/data/files/VER-*.pdf
+!/data/files/VER-*.png
 /test-results/
 /playwright-report/
 /artifacts/

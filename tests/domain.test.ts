@@ -163,6 +163,14 @@ test("Candra evaluates all imported current parameters for a trouble question", 
   assert.ok(answer.citations.length > 0);
   assert.match(answer.limitations, /bukan telemetry DCS\/SIS langsung/);
 });
+test("document answers expose an exact previewable source version", () => {
+  const answer = answerQuestion(seed(), "Find the startup and priming procedure", "EQP-000001");
+  const citation = answer.citations[0];
+  assert.equal(citation.kind, "document");
+  assert.equal(citation.versionId, citation.id);
+  assert.ok(citation.documentId);
+  assert.equal(answer.view, citation.versionId);
+});
 test("Candra uses a saved global what-if scenario without requiring scenario wording", () => {
   const state = controlRoomSeed();
   const scenario = buildScenarioSnapshot(state, { mode: "non-ideal", loadFactor: 1.2, manualOverrides: {} });

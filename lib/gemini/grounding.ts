@@ -69,7 +69,7 @@ export async function authorizedDatabasePassages(db: SupabaseClient, question: s
     return [{
       id: `chunk:${row.chunk_id}`, versionId: row.version_id, equipmentIds: equipmentByVersion.get(row.version_id) || [],
       extractionRunId: "database-vector-retrieval", page: row.page, category: "approved_reference" as const, text: clipPassage(row.content),
-      citation: { id: `chunk:${row.chunk_id}`, label: version.number || version.title, locator: `Rev ${version.revision ?? "not recorded"} · ${locator} · approved/current`, href: `/documents/${version.document_id}/versions/${version.id}` },
+      citation: { id: version.id, label: version.number || version.title, locator: `Rev ${version.revision ?? "not recorded"} · ${locator} · approved/current`, href: `/documents/${version.document_id}/versions/${version.id}`, kind: "document", versionId: version.id, documentId: version.document_id, equipmentId: equipmentByVersion.get(row.version_id)?.[0] },
     }];
   });
 }

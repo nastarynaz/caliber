@@ -38,5 +38,9 @@ export type History = { id: string; equipmentId: string; wo: string; date: strin
 export type Issue = { id: string; title: string; sourceIds: string[]; status: "open" | "resolved"; comment: string; at: string };
 export type HubState = { revision: number; equipment: Equipment[]; documents: DocumentVersion[]; cases: Case[]; history: History[]; issues: Issue[]; audit: Event[]; parameters?: EquipmentParameter[]; parameterRevisions?: ParameterRevision[] };
 export type Command = { action: string; id?: string; data?: Record<string, unknown>; expectedRevision: number };
-export type Citation = { id: string; label: string; locator: string; href: string };
+export type Citation = {
+  id: string; label: string; locator: string; href: string;
+  kind?: "document" | "parameter" | "case" | "history" | "equipment" | "inventory";
+  versionId?: string; documentId?: string; equipmentId?: string; caseId?: string;
+};
 export type Answer = { label: string; text: string; evidence: string; limitations: string; citations: Citation[]; view?: string; conflict: boolean; provider?: string };

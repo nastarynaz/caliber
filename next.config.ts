@@ -24,6 +24,10 @@ if (process.env.HUB_MODE === "connected") {
 if (appEnvironment === "production" && process.env.HUB_MODE !== "connected") throw new Error("Production requires HUB_MODE=connected; demo fallback is disabled.");
 
 const nextConfig: NextConfig = {
+  // Governed demo evidence is bundled for checksum-matched fallback previews.
+  outputFileTracingIncludes: {
+    "/api/files/[id]": ["./data/file-manifest.json", "./data/files/**/*"],
+  },
   // Runtime demo sessions/uploads must never be bundled into a deployment.
   outputFileTracingExcludes: {
     "/*": ["./.local-data/**/*", "./artifacts/**/*", "./reports/ingestion/**/*", "./test-results/**/*", "./playwright-report/**/*"],
