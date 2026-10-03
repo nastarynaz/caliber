@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const scenario = data.scenario ? buildScenarioSnapshot(state, sanitizeScenarioInput(data.scenario, parameterRegistry(state))) : undefined;
     const retrieved = answerQuestion(state, cleanQuestion, equipmentId, broad, scenario);
     const direct = indonesian ? indonesianFallback(retrieved) : retrieved;
-    if (["Asisten AI Siaga", "Inventaris peralatan", "Equipment inventory", "Perhatian peralatan saat ini", "Current equipment attention", "Perhatian skenario What-if", "What-if scenario attention"].includes(direct.label) || !geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(cleanQuestion)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
+    if (["Asisten AI Siaga", "Inventaris peralatan", "Equipment inventory", "Perhatian peralatan saat ini", "Current equipment attention", "Perhatian parameter global", "Global parameter attention"].includes(direct.label) || !geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(cleanQuestion)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
     reserveGeminiRequest(actor.id);
     let answer;
     try {

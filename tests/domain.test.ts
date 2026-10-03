@@ -163,6 +163,15 @@ test("Candra evaluates all imported current parameters for a trouble question", 
   assert.ok(answer.citations.length > 0);
   assert.match(answer.limitations, /bukan telemetry DCS\/SIS langsung/);
 });
+test("Candra uses a saved global what-if scenario without requiring scenario wording", () => {
+  const state = controlRoomSeed();
+  const scenario = buildScenarioSnapshot(state, { mode: "non-ideal", loadFactor: 1.2, manualOverrides: {} });
+  const answer = answerQuestion(state, "Mas, mesin yang sekarang lagi trouble yang mana?", "EQP-000001", true, scenario);
+  assert.equal(answer.label, "Perhatian parameter global");
+  assert.equal(answer.provider, "Evaluasi parameter global · What-if diterapkan");
+  assert.ok(answer.citations.length > 0);
+  assert.match(answer.limitations, /skenario non-ideal yang tersimpan/);
+});
 test("parameter revisions require Controller authority and preserve before/after snapshots", () => {
   let s = controlRoomSeed(); const id = s.parameters![0].id;
   assert.throws(() => command(s, "engineer", "parameter.update", id, { normalMin: 1, comment: "Unauthorized" }), /permission/i);

@@ -7,8 +7,8 @@ const Hub = createContext<Context | null>(null);
 const SCENARIO_STORAGE_KEY = "kh_candra_what_if";
 export function HubProvider({ actor, initial, capabilities, children }: { actor: Actor; initial: HubState; capabilities: { gemini: boolean }; children: ReactNode }) {
   const [state, setState] = useState(initial); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState(""); const [scenarioInput, setScenarioState] = useState<ScenarioInput>(BASELINE_SCENARIO);
-  useEffect(() => { const timer = window.setTimeout(() => { try { const stored = sessionStorage.getItem(SCENARIO_STORAGE_KEY); if (stored) setScenarioState(sanitizeScenarioInput(JSON.parse(stored), parameterRegistry(initial))); } catch { sessionStorage.removeItem(SCENARIO_STORAGE_KEY); } }, 0); return () => window.clearTimeout(timer); }, [initial]);
-  function setScenarioInput(value: ScenarioInput) { const next = sanitizeScenarioInput(value, parameterRegistry(state)); setScenarioState(next); try { sessionStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next)); } catch {} }
+  useEffect(() => { const timer = window.setTimeout(() => { try { const stored = localStorage.getItem(SCENARIO_STORAGE_KEY) ?? sessionStorage.getItem(SCENARIO_STORAGE_KEY); if (stored) { const next = sanitizeScenarioInput(JSON.parse(stored), parameterRegistry(initial)); setScenarioState(next); localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next)); sessionStorage.removeItem(SCENARIO_STORAGE_KEY); } } catch { localStorage.removeItem(SCENARIO_STORAGE_KEY); sessionStorage.removeItem(SCENARIO_STORAGE_KEY); } }, 0); return () => window.clearTimeout(timer); }, [initial]);
+  function setScenarioInput(value: ScenarioInput) { const next = sanitizeScenarioInput(value, parameterRegistry(state)); setScenarioState(next); try { localStorage.setItem(SCENARIO_STORAGE_KEY, JSON.stringify(next)); } catch {} }
   function resetScenario() { setScenarioInput(BASELINE_SCENARIO); }
   const scenarioSnapshot = useMemo(() => buildScenarioSnapshot(state, scenarioInput), [state, scenarioInput]);
   async function request(url: string, body: Command | FormData) {

@@ -1,15 +1,16 @@
 import type { Answer, HubState } from "./types";
 import { eligible } from "./workflow";
-import { parameterStatus, type ScenarioSnapshot } from "./control-room";
+import { parameterRegistry, parameterStatus, type ScenarioSnapshot } from "./control-room";
 import { assistantLanguage } from "./assistant";
 
 function attentionAnswer(state: HubState, question: string, equipmentId: string, broad: boolean, scenario?: ScenarioSnapshot): Answer {
   const indonesian = assistantLanguage(question) === "id";
   const scenarioRequested = Boolean(scenario && /what[ -]?if|skenario|scenario|ideal|non[ -]?ideal|simulasi|simulation/i.test(question));
+  const usesAppliedScenario = Boolean(scenario && scenario.input.mode !== "baseline");
   const scopedIds = new Set(broad ? state.equipment.map(item => item.id) : [equipmentId]);
-  const evaluated = scenarioRequested && scenario
+  const evaluated = usesAppliedScenario && scenario
     ? scenario.parameters.filter(item => scopedIds.has(item.parameter.equipmentId)).map(item => ({ parameter: item.parameter, value: item.simulated, status: item.status }))
-    : (state.parameters ?? []).filter(item => scopedIds.has(item.equipmentId)).map(parameter => ({ parameter, value: parameter.currentValue, status: parameterStatus(parameter, parameter.currentValue) }));
+    : parameterRegistry(state).filter(item => scopedIds.has(item.equipmentId)).map(parameter => ({ parameter, value: parameter.currentValue, status: parameterStatus(parameter, parameter.currentValue) }));
   const abnormal = evaluated.filter(item => item.status === "critical" || item.status === "advisory").sort((a, b) => (a.status === "critical" ? -1 : 1) - (b.status === "critical" ? -1 : 1) || b.parameter.priority21 - a.parameter.priority21);
   const blocked = evaluated.filter(item => item.status === "blocked");
   const openCases = state.cases.filter(item => scopedIds.has(item.equipmentId) && item.status !== "verified_closed");
@@ -23,14 +24,14 @@ function attentionAnswer(state: HubState, question: string, equipmentId: string,
   const tags = affected.map(id => state.equipment.find(item => item.id === id)?.tag ?? id);
   const scopeText = broad ? (indonesian ? "semua peralatan" : "all equipment") : state.equipment.find(item => item.id === equipmentId)?.tag ?? equipmentId;
   return {
-    label: scenarioRequested ? (indonesian ? "Perhatian skenario What-if" : "What-if scenario attention") : (indonesian ? "Perhatian peralatan saat ini" : "Current equipment attention"),
-    provider: scenarioRequested ? "Evaluasi skenario deterministik" : "Evaluasi parameter deterministik",
+    label: usesAppliedScenario ? (indonesian ? "Perhatian parameter global" : "Global parameter attention") : (indonesian ? "Perhatian peralatan saat ini" : "Current equipment attention"),
+    provider: usesAppliedScenario ? "Evaluasi parameter global · What-if diterapkan" : "Evaluasi parameter deterministik",
     text: affected.length
       ? (indonesian ? `${tags.join(", ")} memerlukan perhatian pada cakupan ${scopeText}. Ditemukan ${abnormal.length} deviasi parameter dan ${openCases.length} kasus aktif.` : `${tags.join(", ")} require attention in the ${scopeText} scope. ${abnormal.length} parameter deviations and ${openCases.length} active cases were found.`)
       : (indonesian ? `Tidak ada deviasi parameter atau kasus aktif yang terdeteksi pada cakupan ${scopeText}.` : `No parameter deviation or active case was detected in the ${scopeText} scope.`),
     evidence: evidence.join("\n") || (indonesian ? "Semua parameter yang dapat dinilai berada dalam envelope normal." : "All assessable parameters are within their normal envelopes."),
-    limitations: scenarioRequested
-      ? (indonesian ? "Hasil ini adalah simulasi screening, bukan kondisi plant aktual. Tidak ada output kontrol ke DCS/PLC/SIS dan tidak ada cascade yang diasumsikan tanpa aturan yang disetujui." : "This is a screening simulation, not actual plant condition. No control output is sent and no cascade is inferred without an approved rule.")
+    limitations: usesAppliedScenario
+      ? (indonesian ? `Parameter global memakai skenario ${scenario?.input.mode}${scenarioRequested ? " yang diminta" : " yang tersimpan"}. Hasil ini adalah simulasi screening, bukan kondisi plant aktual. Tidak ada output kontrol ke DCS/PLC/SIS dan tidak ada cascade yang diasumsikan tanpa aturan yang disetujui.` : `Global parameters use the saved ${scenario?.input.mode} scenario. This is a screening simulation, not actual plant condition. No control output is sent and no cascade is inferred without an approved rule.`)
       : (indonesian ? "Status dihitung dari nilai workbook yang diimpor, bukan telemetry DCS/SIS langsung. Verifikasi kondisi lapangan dan sumber terkendali sebelum bertindak." : "Status is calculated from imported workbook values, not live DCS/SIS telemetry. Verify field conditions and controlled sources before acting."),
     citations: abnormal.slice(0, 8).map(item => { const asset = state.equipment.find(equipment => equipment.id === item.parameter.equipmentId); return { id: item.parameter.id, label: `${asset?.tag ?? item.parameter.equipmentId} · ${item.parameter.instrumentTag}`, locator: `${item.parameter.sourceLocator} · ${item.parameter.sourceClass}`, href: `/equipment/${item.parameter.equipmentId}` }; }),
     conflict: false,
@@ -83,9 +84,10 @@ export function answerQuestion(state: HubState, question: string, equipmentId: s
       citations: [{ id: requested.id, label: `${requested.tag} · ${requested.name}`, locator: `Set ${requested.set} · equipment master`, href: `/equipment/${requested.id}` }], view: requested.id };
   }
   const docs = state.documents.filter(d => d.applicability !== "superseded" && d.publication !== "withdrawn" && (broad || d.equipmentIds.includes(equipmentId)));
-  if (/parameter|deviation|threshold|limit|priority|normal|critical|advisory|sil|voting/.test(q) && state.parameters?.length) {
+  const registeredParameters = parameterRegistry(state);
+  if (/parameter|deviation|threshold|limit|priority|normal|critical|advisory|sil|voting/.test(q) && registeredParameters.length) {
     const terms = q.split(/\W+/).filter(t => t.length > 2);
-    const scoped = state.parameters.filter(item => broad || item.equipmentId === equipmentId);
+    const scoped = registeredParameters.filter(item => broad || item.equipmentId === equipmentId);
     const ranked = scoped.map(item => ({ item, status: parameterStatus(item, item.currentValue), relevance: terms.filter(term => `${item.instrumentTag} ${item.name} ${item.sourceClass}`.toLowerCase().includes(term)).length }))
       .filter(entry => /priority|deviation|critical|advisory/.test(q) ? entry.status === "critical" || entry.status === "advisory" : entry.relevance > 0)
       .sort((a, b) => b.item.priority21 - a.item.priority21 || b.relevance - a.relevance).slice(0, 5);

@@ -1,6 +1,6 @@
 import type { AuthorizedPassage } from "./providers";
 import type { HubState } from "./types";
-import { parameterStatus } from "./control-room";
+import { parameterRegistry, parameterStatus } from "./control-room";
 import { eligible } from "./workflow";
 
 const TERM_EXPANSIONS: Record<string, string[]> = {
@@ -47,18 +47,19 @@ export function clipPassage(text: string, limit = 6000) {
 
 export function buildAuthorizedPassages(state: HubState, question: string, equipmentId: string, broad: boolean): AuthorizedPassage[] {
   const query = knowledgeQueryTerms(question); const candidates: AuthorizedPassage[] = [];
+  const parameters = parameterRegistry(state);
   const scopedEquipment = state.equipment.filter(item => broad || item.id === equipmentId);
   const inventory = state.equipment.map(item => `Set ${item.set}: ${item.tag} — ${item.name}; location ${item.location || "not recorded"}; area ${item.area}`).join("\n");
   candidates.push({ id: "inventory:equipment", versionId: "workspace-equipment-inventory", equipmentIds: state.equipment.map(item => item.id), extractionRunId: "workspace-snapshot", page: 1,
     category: "equipment_catalog", text: `Knowledge Hub equipment inventory. Count: ${state.equipment.length} equipment sets.\n${inventory}\nThis is the current workspace inventory, not the complete plant asset register.`, citation: { id: "inventory:equipment", label: "Knowledge Hub equipment inventory", locator: `${state.equipment.length} accessible sets · current workspace snapshot`, href: "/equipment" } });
   for (const item of scopedEquipment) {
     const sourceCount = state.documents.filter(doc => doc.equipmentIds.includes(item.id) && doc.applicability !== "superseded" && doc.publication !== "withdrawn").length;
-    const parameterCount = (state.parameters ?? []).filter(parameter => parameter.equipmentId === item.id).length;
+    const parameterCount = parameters.filter(parameter => parameter.equipmentId === item.id).length;
     const historyCount = state.history.filter(record => record.equipmentId === item.id).length;
     candidates.push({ id: `equipment:${item.id}`, versionId: item.id, equipmentIds: [item.id], extractionRunId: "workspace-snapshot", page: 1,
       category: "equipment_catalog", text: `Equipment set ${item.set}. Tag: ${item.tag}. Name: ${item.name}. Location: ${item.location || "not recorded"}. Area: ${item.area}. Accessible source records: ${sourceCount}. Governed parameters: ${parameterCount}. Imported maintenance records: ${historyCount}. Counts describe the current workspace only.`, citation: { id: item.id, label: `${item.tag} · ${item.name}`, locator: `Set ${item.set} · equipment master`, href: `/equipment/${item.id}` } });
   }
-  for (const item of state.parameters ?? []) {
+  for (const item of parameters) {
     if (!broad && item.equipmentId !== equipmentId) continue;
     const equipment = state.equipment.find(asset => asset.id === item.equipmentId);
     const status = parameterStatus(item, item.currentValue);
