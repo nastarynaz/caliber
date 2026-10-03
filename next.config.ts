@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
   // Governed demo evidence is bundled for checksum-matched fallback previews.
   outputFileTracingIncludes: {
     "/api/files/[id]": ["./data/file-manifest.json", "./data/files/**/*"],
+    "/erd": ["./docs/erd.html"],
   },
   // Runtime demo sessions/uploads must never be bundled into a deployment.
   outputFileTracingExcludes: {
