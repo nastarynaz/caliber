@@ -6,7 +6,7 @@ import { answerQuestion } from "../lib/domain/retrieval";
 import { safeReturnPath } from "../lib/domain/navigation";
 import { validateCitations } from "../lib/domain/providers";
 import { equipmentCondition } from "../lib/domain/equipment-status";
-import { parameterStatus, scenarioValue } from "../lib/domain/control-room";
+import { buildScenarioSnapshot, parameterStatus, sanitizeScenarioInput, scenarioValue } from "../lib/domain/control-room";
 import { validatedEquipmentPath } from "../lib/domain/locator";
 import { assistantLanguage, sanitizeAssistantHistory, sanitizeAssistantQuestion, validCandraScope } from "../lib/domain/assistant";
 import { buildAuthorizedPassages, knowledgeQueryTerms } from "../lib/domain/grounding-passages";
@@ -141,6 +141,27 @@ test("control room imports all 38 parameters and derives scenario status determi
   assert.equal(scenarioValue(load, "non-ideal", 10), load.baseValue! * 10);
   assert.equal(parameterStatus(load, load.baseValue), "normal");
   assert.equal(parameterStatus(load, load.baseValue! * 10), "advisory");
+});
+test("what-if preserves the baseline and changes only explicit scenario drivers", () => {
+  const s = controlRoomSeed(); const before = structuredClone(s);
+  const load = s.parameters!.find(item => item.modelDriver === "LOAD" && item.baseValue !== null)!;
+  const manual = s.parameters!.find(item => item.modelDriver === "MANUAL" && item.currentValue !== null)!;
+  const calculated = s.parameters!.find(item => item.modelDriver === "CALCULATED")!;
+  const input = sanitizeScenarioInput({ mode: "non-ideal", loadFactor: 1.2, manualOverrides: { [manual.id]: manual.currentValue! + 1 } }, s.parameters!);
+  const snapshot = buildScenarioSnapshot(s, input);
+  assert.equal(snapshot.parameters.find(item => item.parameter.id === load.id)?.simulated, load.baseValue! * 1.2);
+  assert.equal(snapshot.parameters.find(item => item.parameter.id === manual.id)?.simulated, manual.currentValue! + 1);
+  assert.equal(snapshot.parameters.find(item => item.parameter.id === calculated.id)?.simulated, calculated.currentValue);
+  assert.deepEqual(s, before);
+  assert.throws(() => sanitizeScenarioInput({ mode: "non-ideal", loadFactor: 11, manualOverrides: {} }, s.parameters!), /between 0.1 and 10/);
+  assert.throws(() => sanitizeScenarioInput({ mode: "non-ideal", loadFactor: 1, manualOverrides: { [load.id]: 4 } }, s.parameters!), /Only MANUAL/);
+});
+test("Candra evaluates all imported current parameters for a trouble question", () => {
+  const answer = answerQuestion(controlRoomSeed(), "Peralatan mana yang sekarang sedang trouble?", "EQP-000001", true);
+  assert.equal(answer.label, "Perhatian peralatan saat ini");
+  assert.equal(answer.provider, "Evaluasi parameter deterministik");
+  assert.ok(answer.citations.length > 0);
+  assert.match(answer.limitations, /bukan telemetry DCS\/SIS langsung/);
 });
 test("parameter revisions require Controller authority and preserve before/after snapshots", () => {
   let s = controlRoomSeed(); const id = s.parameters![0].id;

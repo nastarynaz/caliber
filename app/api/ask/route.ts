@@ -6,6 +6,7 @@ import { geminiEnabled, groundedGeminiAnswer, groundedGeminiDatabaseAnswer } fro
 import { supabaseServer } from "@/lib/supabase/server";
 import { assistantLanguage, sanitizeAssistantHistory, sanitizeAssistantQuestion } from "@/lib/domain/assistant";
 import type { Answer } from "@/lib/domain/types";
+import { buildScenarioSnapshot, parameterRegistry, sanitizeScenarioInput } from "@/lib/domain/control-room";
 
 function indonesianFallback(answer: Answer): Answer {
   const labels: Record<string, string> = {
@@ -48,9 +49,10 @@ export async function POST(request: Request) {
     if (!state.equipment.some(item => item.id === equipmentId)) throw new DomainError("Equipment scope is unavailable.", 404);
     const history = sanitizeAssistantHistory(data.history);
     const indonesian = assistantLanguage(cleanQuestion) === "id";
-    const retrieved = answerQuestion(state, cleanQuestion, equipmentId, broad);
+    const scenario = data.scenario ? buildScenarioSnapshot(state, sanitizeScenarioInput(data.scenario, parameterRegistry(state))) : undefined;
+    const retrieved = answerQuestion(state, cleanQuestion, equipmentId, broad, scenario);
     const direct = indonesian ? indonesianFallback(retrieved) : retrieved;
-    if (["Asisten AI Siaga", "Inventaris peralatan", "Equipment inventory"].includes(direct.label) || !geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(cleanQuestion)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
+    if (["Asisten AI Siaga", "Inventaris peralatan", "Equipment inventory", "Perhatian peralatan saat ini", "Current equipment attention", "Perhatian skenario What-if", "What-if scenario attention"].includes(direct.label) || !geminiEnabled() || /trend|live|temperature over|thermal profile/i.test(cleanQuestion)) return Response.json(direct, { headers: { "Cache-Control": "private, no-store" } });
     reserveGeminiRequest(actor.id);
     let answer;
     try {

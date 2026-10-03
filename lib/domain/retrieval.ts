@@ -1,8 +1,43 @@
 import type { Answer, HubState } from "./types";
 import { eligible } from "./workflow";
-import { parameterStatus } from "./control-room";
+import { parameterStatus, type ScenarioSnapshot } from "./control-room";
 import { assistantLanguage } from "./assistant";
-export function answerQuestion(state: HubState, question: string, equipmentId: string, broad = false): Answer {
+
+function attentionAnswer(state: HubState, question: string, equipmentId: string, broad: boolean, scenario?: ScenarioSnapshot): Answer {
+  const indonesian = assistantLanguage(question) === "id";
+  const scenarioRequested = Boolean(scenario && /what[ -]?if|skenario|scenario|ideal|non[ -]?ideal|simulasi|simulation/i.test(question));
+  const scopedIds = new Set(broad ? state.equipment.map(item => item.id) : [equipmentId]);
+  const evaluated = scenarioRequested && scenario
+    ? scenario.parameters.filter(item => scopedIds.has(item.parameter.equipmentId)).map(item => ({ parameter: item.parameter, value: item.simulated, status: item.status }))
+    : (state.parameters ?? []).filter(item => scopedIds.has(item.equipmentId)).map(parameter => ({ parameter, value: parameter.currentValue, status: parameterStatus(parameter, parameter.currentValue) }));
+  const abnormal = evaluated.filter(item => item.status === "critical" || item.status === "advisory").sort((a, b) => (a.status === "critical" ? -1 : 1) - (b.status === "critical" ? -1 : 1) || b.parameter.priority21 - a.parameter.priority21);
+  const blocked = evaluated.filter(item => item.status === "blocked");
+  const openCases = state.cases.filter(item => scopedIds.has(item.equipmentId) && item.status !== "verified_closed");
+  const affected = [...new Set([...abnormal.map(item => item.parameter.equipmentId), ...openCases.map(item => item.equipmentId)])];
+  const evidence = abnormal.map(item => {
+    const asset = state.equipment.find(equipment => equipment.id === item.parameter.equipmentId);
+    return `${asset?.tag ?? item.parameter.equipmentId} · ${item.parameter.instrumentTag}: ${item.value ?? "not available"} ${item.parameter.unit}; normal ${item.parameter.normalMin ?? "not available"}–${item.parameter.normalMax ?? "not available"}; ${item.status}; priority ${item.parameter.priority21}/21. Verifikasi: ${item.parameter.engineeringNote}`;
+  });
+  evidence.push(...openCases.map(item => { const asset = state.equipment.find(equipment => equipment.id === item.equipmentId); return `${asset?.tag ?? item.equipmentId} · open case ${item.id}: ${item.title} (${item.status}).`; }));
+  if (blocked.length) evidence.push(`${blocked.length} parameter tidak dapat dinilai karena nilai atau batas normal belum lengkap: ${blocked.slice(0, 5).map(item => item.parameter.instrumentTag).join(", ")}${blocked.length > 5 ? ", …" : ""}.`);
+  const tags = affected.map(id => state.equipment.find(item => item.id === id)?.tag ?? id);
+  const scopeText = broad ? (indonesian ? "semua peralatan" : "all equipment") : state.equipment.find(item => item.id === equipmentId)?.tag ?? equipmentId;
+  return {
+    label: scenarioRequested ? (indonesian ? "Perhatian skenario What-if" : "What-if scenario attention") : (indonesian ? "Perhatian peralatan saat ini" : "Current equipment attention"),
+    provider: scenarioRequested ? "Evaluasi skenario deterministik" : "Evaluasi parameter deterministik",
+    text: affected.length
+      ? (indonesian ? `${tags.join(", ")} memerlukan perhatian pada cakupan ${scopeText}. Ditemukan ${abnormal.length} deviasi parameter dan ${openCases.length} kasus aktif.` : `${tags.join(", ")} require attention in the ${scopeText} scope. ${abnormal.length} parameter deviations and ${openCases.length} active cases were found.`)
+      : (indonesian ? `Tidak ada deviasi parameter atau kasus aktif yang terdeteksi pada cakupan ${scopeText}.` : `No parameter deviation or active case was detected in the ${scopeText} scope.`),
+    evidence: evidence.join("\n") || (indonesian ? "Semua parameter yang dapat dinilai berada dalam envelope normal." : "All assessable parameters are within their normal envelopes."),
+    limitations: scenarioRequested
+      ? (indonesian ? "Hasil ini adalah simulasi screening, bukan kondisi plant aktual. Tidak ada output kontrol ke DCS/PLC/SIS dan tidak ada cascade yang diasumsikan tanpa aturan yang disetujui." : "This is a screening simulation, not actual plant condition. No control output is sent and no cascade is inferred without an approved rule.")
+      : (indonesian ? "Status dihitung dari nilai workbook yang diimpor, bukan telemetry DCS/SIS langsung. Verifikasi kondisi lapangan dan sumber terkendali sebelum bertindak." : "Status is calculated from imported workbook values, not live DCS/SIS telemetry. Verify field conditions and controlled sources before acting."),
+    citations: abnormal.slice(0, 8).map(item => { const asset = state.equipment.find(equipment => equipment.id === item.parameter.equipmentId); return { id: item.parameter.id, label: `${asset?.tag ?? item.parameter.equipmentId} · ${item.parameter.instrumentTag}`, locator: `${item.parameter.sourceLocator} · ${item.parameter.sourceClass}`, href: `/equipment/${item.parameter.equipmentId}` }; }),
+    conflict: false,
+  };
+}
+
+export function answerQuestion(state: HubState, question: string, equipmentId: string, broad = false, scenario?: ScenarioSnapshot): Answer {
   const q = question.trim().toLowerCase();
   const base: Answer = { label: "Insufficient evidence", text: "The accessible sources do not establish an answer to this question.", evidence: "No supported claim was generated.", limitations: "Keyword retrieval only. Refine your question or supply an observation for review.", citations: [], conflict: false, provider: "Deterministic retrieval" };
   const cleaned = q.replace(/[?!.,;]/g, "").trim();
@@ -36,6 +71,8 @@ export function answerQuestion(state: HubState, question: string, equipmentId: s
     };
   }
   if (!state.equipment.some(e => e.id === equipmentId)) return { ...base, text: "Choose equipment to establish your question's scope." };
+  const asksForAttention = /trouble|problem|masalah|bermasalah|abnormal|deviasi|deviation|warning|alarm|advisory|critical|kritis|blocked|perhatian|resolve|diselesaikan|verifikasi|current parameter|parameter sekarang|current condition|kondisi saat ini|highest priority|prioritas tertinggi/i.test(cleaned);
+  if (asksForAttention) return attentionAnswer(state, question, equipmentId, broad, scenario);
   if (/\b(lokasi|dimana|where|location)\b/i.test(cleaned)) {
     const requested = state.equipment.find(item => cleaned.includes(item.tag.toLowerCase())) ?? state.equipment.find(item => item.id === equipmentId)!;
     const indonesian = assistantLanguage(question) === "id";

@@ -9,7 +9,7 @@ import { useHub } from "./provider";
 type Message = { question: string; answer: Answer };
 
 export function GlobalAI({ initialEquipmentId }: { initialEquipmentId: string }) {
-  const { state, capabilities, setNotice } = useHub();
+  const { state, capabilities, setNotice, scenarioInput } = useHub();
   const [open, setOpen] = useState(false);
   const [equipmentId, setEquipmentId] = useState(initialEquipmentId);
   const [query, setQuery] = useState("");
@@ -49,7 +49,7 @@ export function GlobalAI({ initialEquipmentId }: { initialEquipmentId: string })
     try {
       const selected = equipmentId === "all" ? state.equipment[0]?.id : equipmentId;
       const history = messages.slice(-3).map(message => ({ question: message.question, answer: message.answer.text }));
-      const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: clean, equipmentId: selected, broad: equipmentId === "all", history }) });
+      const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: clean, equipmentId: selected, broad: equipmentId === "all", history, scenario: scenarioInput.mode === "baseline" ? undefined : scenarioInput }) });
       const answer = await response.json();
       if (!response.ok) throw new Error(answer.error || "Knowledge retrieval failed.");
       setMessages(current => [...current, { question: clean, answer }]);
@@ -62,7 +62,7 @@ export function GlobalAI({ initialEquipmentId }: { initialEquipmentId: string })
   return <div className="global-ai-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
     <aside className="global-ai-panel" role="dialog" aria-modal="true" aria-label="Global knowledge assistant">
       <header><div className="global-ai-candra-header"><div className="candra-header-avatar"><Image src="/Candra.png" alt="Mas Candra" width={34} height={34} className="candra-mini-img"/><span className="candra-status-dot-sm"/></div><div><span>Candra · Asisten AI Pabrik</span><small>{capabilities.gemini ? "Retrieval berbasis bukti · korpus Chandra Asri" : "Retrieval deterministik · korpus Chandra Asri"}</small></div></div><button type="button" aria-label="Tutup asisten AI" onClick={() => setOpen(false)}><X size={18}/></button></header>
-      <div className="global-ai-scope"><label>Cakupan bukti<select value={equipmentId} onChange={event => void chooseEquipmentScope(event.target.value)}><option value="all">Semua 8 set peralatan</option>{state.equipment.map(item => <option key={item.id} value={item.id}>{item.tag} · {item.name}</option>)}</select></label><p>AI menjelaskan bukti yang ditemukan. AI tidak menetapkan kondisi proses atau menggantikan prosedur yang disetujui.</p></div>
+      <div className="global-ai-scope"><label>Cakupan bukti<select value={equipmentId} onChange={event => void chooseEquipmentScope(event.target.value)}><option value="all">Semua 8 set peralatan</option>{state.equipment.map(item => <option key={item.id} value={item.id}>{item.tag} · {item.name}</option>)}</select></label>{scenarioInput.mode !== "baseline" && <span className="global-ai-scenario">What-if tersedia: {scenarioInput.mode === "ideal" ? "ideal" : `non-ideal ${scenarioInput.loadFactor.toFixed(2)}×`}. Sebut “skenario” untuk menanyakannya.</span>}<p>AI menjelaskan bukti yang ditemukan. AI tidak menetapkan kondisi proses atau menggantikan prosedur yang disetujui.</p></div>
       <div className="global-ai-thread" aria-live="polite">
         {!messages.length && <div className="global-ai-empty"><div className="candra-welcome-avatar"><Image src="/Candra.png" alt="Mas Candra" width={68} height={68} className="candra-welcome-img"/><span className="candra-welcome-badge">Online</span></div><h2>Tanya Mas Candra</h2><p>Telusuri dokumen kontrol, manual spesifikasi, P&ID, dan riwayat maintenance kilang. Setiap jawaban merujuk pada bukti otentik.</p>{["Peralatan mana yang memiliki deviasi prioritas tertinggi?", "Cari langkah verifikasi yang disetujui untuk peralatan ini", "Parameter mana yang diblokir atau hanya untuk pelatihan?"].map(question => <button type="button" key={question} onClick={() => ask(question)}>{question}<ArrowUpRight size={13}/></button>)}</div>}
         {messages.map((message, index) => <article className="global-ai-message" key={`${message.question}-${index}`}><p className="global-ai-question">{message.question}</p><div className="global-ai-answer"><span>{message.answer.provider ?? "Retrieval Knowledge Hub"}</span><strong>{message.answer.label}</strong><p>{message.answer.text}</p>{message.answer.evidence && <blockquote>{message.answer.evidence}</blockquote>}<div>{message.answer.citations.map((citation, citationIndex) => <a key={`${citation.id}-${citationIndex}`} href={citation.href} target="_blank" rel="noreferrer"><b>{citationIndex + 1}</b><span>{citation.label}<small>{citation.locator}</small></span></a>)}</div><small>{message.answer.limitations}</small></div></article>)}
