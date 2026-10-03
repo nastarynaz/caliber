@@ -1,4 +1,4 @@
-# Manufacturing Knowledge Hub
+# Manufacturing Knowledge Hub!
 
 A working CALIBER Case 1 pilot using Next.js App Router, React, Tailwind 4, Supabase, and Gemini. It supports an isolated local demo and an authenticated connected workspace with transactional workflow operations, RLS-scoped reads, private files, and evidence-grounded answers.
 
