@@ -4,7 +4,7 @@ import type { Citation } from "./types";
 // The caller must authenticate, enforce ACLs and eligibility before constructing passages.
 export type AuthorizedPassage = {
   id: string; versionId: string; equipmentIds: string[]; extractionRunId: string;
-  page: number; text: string; citation: Citation; category?: "approved_reference" | "reviewed_case" | "historical_record" | "governed_parameter";
+  page: number; text: string; citation: Citation; category?: "approved_reference" | "reviewed_case" | "historical_record" | "governed_parameter" | "equipment_catalog" | "source_catalog";
 };
 export interface AnswerProvider {
   readonly name: string;

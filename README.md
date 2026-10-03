@@ -109,10 +109,13 @@ Client-facing tables have RLS and SELECT-only grants. Mutations go through narro
 
 ## Gemini grounded answers
 
-Set `GEMINI_ENABLED=true`, add the server-only `GEMINI_API_KEY`, and choose a model in `.env.local`. If disabled, the hub continues to use deterministic retrieval. If enabled, the question endpoint:
+Set `GEMINI_ENABLED=true`, add the server-only `GEMINI_API_KEY`, and choose models in `.env.local`. Both grounded chat (`GEMINI_ANSWER_MODEL`) and document understanding/OCR (`GEMINI_MODEL`) default to the cost-efficient `gemini-3.1-flash-lite`; raise the OCR model only for an explicitly approved exceptional job. If disabled, the hub continues to use deterministic retrieval. If enabled, the question endpoint:
 
 - builds evidence only from the caller's already RLS-filtered snapshot;
 - includes approved, published, indexed, current documents plus verified case closures and scoped historical records;
+- adds governed equipment profiles and document-lifecycle metadata without exposing unapproved document bodies;
+- expands common Indonesian engineering terms into bilingual retrieval terms before ranking evidence;
+- caps each answer at six ranked passages and a 20,000-character evidence budget to control token spend;
 - uses a stateless Gemini Generate Content request with structured JSON output;
 - rejects citations that are not in the authorized evidence set;
 - accepts at most three sanitized in-memory conversation turns for follow-up context; conversations are not persisted;

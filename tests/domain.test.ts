@@ -9,6 +9,7 @@ import { equipmentCondition } from "../lib/domain/equipment-status";
 import { parameterStatus, scenarioValue } from "../lib/domain/control-room";
 import { validatedEquipmentPath } from "../lib/domain/locator";
 import { assistantLanguage, sanitizeAssistantHistory, sanitizeAssistantQuestion, validCandraScope } from "../lib/domain/assistant";
+import { buildAuthorizedPassages, knowledgeQueryTerms } from "../lib/domain/grounding-passages";
 import type { Actor, HubState, Role } from "../lib/domain/types";
 const seed = (): HubState => JSON.parse(readFileSync(new URL("../data/catalog.json", import.meta.url), "utf8"));
 const controlRoomSeed = (): HubState => ({ ...seed(), parameters: JSON.parse(readFileSync(new URL("../data/control-room-parameters.json", import.meta.url), "utf8")), parameterRevisions: [] });
@@ -121,6 +122,12 @@ test("assistant reports the governed equipment-set count in Indonesian", () => {
   const typo = answerQuestion(seed(), "ada berpaa sets", "EQP-000001", true);
   assert.equal(typo.label, "Inventaris peralatan");
   assert.match(typo.text, /8 set peralatan/);
+  const list = answerQuestion(seed(), "Apa saja equipment yang tersedia?", "EQP-000001", true);
+  assert.equal(list.evidence.split("\n").length, 8);
+  assert.match(list.evidence, /Set 08 · FA-8901/);
+  const location = answerQuestion(seed(), "Di mana lokasi GA-1201A?", "EQP-000001", false);
+  assert.equal(location.label, "Identitas peralatan");
+  assert.match(location.text, /TJC-LLD-1200-01/);
 });
 test("QR return paths are internal and reject unsafe redirects", () => {
   assert.equal(safeReturnPath("/equipment/EQP-000002"), "/equipment/EQP-000002");
@@ -195,4 +202,18 @@ test("assistant recognizes Indonesian questions without changing English default
   assert.equal(assistantLanguage("Tampilkan riwayat vibrasi sebelumnya"), "id");
   assert.equal(assistantLanguage("ada berpaa sets"), "id");
   assert.equal(assistantLanguage("Show the pump vibration history"), "en");
+});
+test("grounding expands Indonesian engineering terms and retrieves governed catalog evidence", () => {
+  const query = knowledgeQueryTerms("Cari lokasi pompa dan riwayat getaran");
+  for (const term of ["location", "pump", "history", "vibration"]) assert.ok(query.includes(term));
+  const passages = buildAuthorizedPassages(controlRoomSeed(), "dokumen spesifikasi pompa GA-1201A", "EQP-000001", false);
+  assert.ok(passages.some(item => item.category === "equipment_catalog" && item.text.includes("GA-1201A")));
+  assert.ok(passages.some(item => item.category === "source_catalog" && item.text.includes("TJC-LLD-DS-GA-1201A")));
+  assert.ok(passages.filter(item => item.category === "source_catalog").every(item => item.text.includes("metadata only")));
+  assert.ok(!passages.some(item => item.category === "approved_reference"), "candidate source bodies must remain excluded");
+  const governed = controlRoomSeed();
+  Object.assign(governed.documents[0], { review: "approved", publication: "published", indexing: "ready", applicability: "current" });
+  const approvedPassages = buildAuthorizedPassages(governed, "datasheet GA-1201A", "EQP-000001", false);
+  assert.ok(approvedPassages.some(item => item.id === "document:VER-000001:page:1" && item.category === "approved_reference"));
+  assert.ok(!approvedPassages.some(item => item.id === "source-catalog:VER-000001"), "approved bodies replace metadata-only passages");
 });

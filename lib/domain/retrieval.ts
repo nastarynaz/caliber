@@ -22,7 +22,9 @@ export function answerQuestion(state: HubState, question: string, equipmentId: s
     /\b(sets?|equipment)\b.*\bhow many\b/i.test(cleaned) ||
     /\b(ada|jumlah|total|berapa|berpa\w*|brp)\b.*\b(sets?|equipment|peralatan)\b/i.test(cleaned) ||
     /\b(sets?|equipment|peralatan)\b.*\b(jumlah|total|berapa|berpa\w*|brp)\b/i.test(cleaned);
-  if (asksForEquipmentCount) {
+  const asksForEquipmentList = /\b(apa saja|daftar|list|sebutkan|show|which)\b.*\b(sets?|equipment|peralatan)\b/i.test(cleaned) ||
+    /\b(sets?|equipment|peralatan)\b.*\b(apa saja|daftar|list|tersedia|available)\b/i.test(cleaned);
+  if (asksForEquipmentCount || asksForEquipmentList) {
     const indonesian = assistantLanguage(question) === "id";
     return {
       ...base,
@@ -34,6 +36,15 @@ export function answerQuestion(state: HubState, question: string, equipmentId: s
     };
   }
   if (!state.equipment.some(e => e.id === equipmentId)) return { ...base, text: "Choose equipment to establish your question's scope." };
+  if (/\b(lokasi|dimana|where|location)\b/i.test(cleaned)) {
+    const requested = state.equipment.find(item => cleaned.includes(item.tag.toLowerCase())) ?? state.equipment.find(item => item.id === equipmentId)!;
+    const indonesian = assistantLanguage(question) === "id";
+    return { ...base, label: indonesian ? "Identitas peralatan" : "Equipment identity", provider: indonesian ? "Inventaris Knowledge Hub" : "Knowledge Hub inventory",
+      text: indonesian ? `${requested.tag} (${requested.name}) tercatat di lokasi ${requested.location || "yang belum dicatat"}, area ${requested.area}.` : `${requested.tag} (${requested.name}) is recorded at ${requested.location || "an unrecorded location"}, area ${requested.area}.`,
+      evidence: `Set ${requested.set} · ${requested.tag} · ${requested.name} · ${requested.location || "location not recorded"} · ${requested.area}`,
+      limitations: indonesian ? "Lokasi berasal dari master equipment workspace, bukan verifikasi posisi fisik atau data lokasi langsung." : "Location comes from the workspace equipment master, not physical-position verification or live location data.",
+      citations: [{ id: requested.id, label: `${requested.tag} · ${requested.name}`, locator: `Set ${requested.set} · equipment master`, href: `/equipment/${requested.id}` }], view: requested.id };
+  }
   const docs = state.documents.filter(d => d.applicability !== "superseded" && d.publication !== "withdrawn" && (broad || d.equipmentIds.includes(equipmentId)));
   if (/parameter|deviation|threshold|limit|priority|normal|critical|advisory|sil|voting/.test(q) && state.parameters?.length) {
     const terms = q.split(/\W+/).filter(t => t.length > 2);

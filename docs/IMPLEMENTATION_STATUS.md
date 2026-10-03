@@ -1,4 +1,4 @@
-# Implementation and verification — 1 October 2026
+# Implementation and verification — 3 October 2026
 
 ## Current scope
 
@@ -6,7 +6,7 @@ Working Set 01 local demo plus connected adapter: eight equipment identities, 12
 
 The first-login experience includes a role-aware spotlight walkthrough with persistent completion, replay control, Back/Next/Skip, keyboard navigation, focus trapping, inert background content, reduced-motion support, and responsive coachmark placement.
 
-Supabase connected mode now includes Auth, RLS-scoped snapshots, private Storage, and transactional role-checked RPC mutations. Gemini grounded synthesis is implemented behind an explicit environment switch, with three-turn ephemeral context, sanitized inputs, a validated HTTP-only equipment-scope preference, and a process-local rate limit. No remote migration, live Gemini call, OCR job, or deployment was performed because no project credentials were supplied.
+Supabase connected mode now includes Auth, RLS-scoped snapshots, private Storage, and transactional role-checked RPC mutations. Gemini grounded synthesis is implemented behind an explicit environment switch, with three-turn ephemeral context, sanitized inputs, a validated HTTP-only equipment-scope preference, bilingual Indonesian/English term expansion, governed equipment and source-catalog passages, and a process-local rate limit. Source-catalog passages expose lifecycle metadata only; unapproved document bodies remain excluded. No remote migration, OCR job, or deployment was performed.
 
 ## Verification
 
@@ -15,11 +15,11 @@ Supabase connected mode now includes Auth, RLS-scoped snapshots, private Storage
 | `pnpm lint` | Passed |
 | `pnpm exec next typegen` | Passed |
 | `pnpm exec tsc --noEmit` | Passed |
-| `pnpm test` | 21 domain/security tests passed |
+| `pnpm test` | 24 domain/security tests passed |
 | `pnpm test:e2e` | Four browser/API integration tests passed using isolated headless Brave |
 | `pnpm build` | Passed (Turbopack) |
 | Supabase RLS/migration | Not run: no configured authorized database |
-| Live Gemini | Integration compiled; not called without a user-supplied key |
+| Live Gemini | Provider reached; configured project returned depleted prepayment credits, so deterministic fallback remains active |
 | OCR/embeddings | Foundation only; not configured or called |
 | Physical-device touch/Safari | Not run |
 
